@@ -81,10 +81,10 @@ mkdir -p /tmp/git
 git init --bare /tmp/git/myproject.git
 
 # Create a minimal configuration
-echo "scan-path=/tmp/git" > /tmp/cgitrc
+echo "scan-path=/tmp/git" > /tmp/gitweb.conf
 
 # Test the CGI directly
-CGIT_CONFIG=/tmp/cgitrc QUERY_STRING="r=myproject" REQUEST_METHOD=GET ./zig-out/bin/gitweb.cgi
+GITWEB_CONFIG=/tmp/gitweb.conf QUERY_STRING="r=myproject" REQUEST_METHOD=GET ./zig-out/bin/gitweb.cgi
 ```
 
 ### URL Parameters
@@ -114,12 +114,12 @@ CGIT_CONFIG=/tmp/cgitrc QUERY_STRING="r=myproject" REQUEST_METHOD=GET ./zig-out/
 
 ### Configuration File
 
-zig-gitweb uses a configuration file (cgitrc) to specify repository locations and settings.
+zig-gitweb uses a configuration file (gitweb.conf) to specify repository locations and settings.
 The configuration file is read from:
-1. The path specified in the `CGIT_CONFIG` environment variable
-2. `/etc/cgitrc` (default location)
+1. The path specified in the `GITWEB_CONFIG` environment variable
+2. `/etc/gitweb.conf` (default location)
 
-See `cgitrc.example` for a complete example configuration.
+See `gitweb.conf.example` for a complete example configuration.
 
 ### Repository Setup
 
@@ -128,7 +128,7 @@ There are several ways to configure repositories:
 #### 1. Automatic scanning with scan-path
 
 ```ini
-# In cgitrc:
+# In gitweb.conf:
 scan-path=/srv/git
 ```
 
@@ -137,7 +137,7 @@ All bare git repositories under `/srv/git` will be automatically discovered.
 #### 2. Manual repository configuration
 
 ```ini
-# In cgitrc:
+# In gitweb.conf:
 repo.url=myproject
 repo.path=/path/to/myproject.git
 repo.desc=My Project Description
@@ -147,8 +147,8 @@ repo.owner=John Doe
 #### 3. Project list file
 
 ```ini
-# In cgitrc:
-project-list=/etc/cgit-projects.txt
+# In gitweb.conf:
+project-list=/etc/gitweb-projects.txt
 ```
 
 Where the project list file contains repository paths, one per line.
@@ -168,8 +168,8 @@ cd /path/to/existing/project
 git remote add web /srv/git/myproject.git
 git push web main
 
-# Configure cgitrc
-sudo tee /etc/cgitrc <<EOF
+# Configure gitweb.conf
+sudo tee /etc/gitweb.conf <<EOF
 scan-path=/srv/git
 root-title=My Git Repositories
 root-desc=Source code repository browser
