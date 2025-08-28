@@ -4,7 +4,7 @@ const gitweb = @import("../gitweb.zig");
 pub fn plain(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
     const path = ctx.query.get("path") orelse return error.NoPath;
-    
+
     // Determine MIME type based on file extension
     const ext = std.fs.path.extension(path);
     if (ctx.cfg.mimetypes.get(ext)) |mimetype| {
@@ -30,7 +30,7 @@ pub fn plain(ctx: *gitweb.Context, writer: anytype) !void {
     } else {
         ctx.page.mimetype = "application/octet-stream";
     }
-    
+
     // TODO: Serve actual file content from git
     try writer.writeAll("File content will be served here\n");
     _ = repo;

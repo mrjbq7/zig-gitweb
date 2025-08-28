@@ -69,7 +69,7 @@ pub fn dispatch(ctx: *gitweb.Context, writer: anytype) !void {
     if (std.mem.eql(u8, ctx.cmd, "stats")) return ui_stats.stats(ctx, writer);
     if (std.mem.eql(u8, ctx.cmd, "tag")) return ui_tag.tag(ctx, writer);
     if (std.mem.eql(u8, ctx.cmd, "tree")) return ui_tree.tree(ctx, writer);
-    
+
     // Default to summary
     return ui_summary.summary(ctx, writer);
 }

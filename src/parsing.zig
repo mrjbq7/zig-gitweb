@@ -4,35 +4,36 @@ const gitweb = @import("gitweb.zig");
 pub fn parseDate(str: []const u8, default_value: i64) i64 {
     const trimmed = std.mem.trim(u8, str, " \t\r\n");
     if (trimmed.len == 0) return default_value;
-    
+
     const timestamp = std.fmt.parseInt(i64, trimmed, 10) catch {
         // Try to parse as RFC2822 or ISO8601
         return default_value;
     };
-    
+
     return timestamp;
 }
 
 pub fn parseBool(str: []const u8) bool {
     const trimmed = std.mem.trim(u8, str, " \t\r\n");
-    
+
     if (std.mem.eql(u8, trimmed, "1") or
         std.mem.eql(u8, trimmed, "true") or
         std.mem.eql(u8, trimmed, "yes") or
-        std.mem.eql(u8, trimmed, "on")) {
+        std.mem.eql(u8, trimmed, "on"))
+    {
         return true;
     }
-    
+
     return false;
 }
 
 pub fn parseSize(str: []const u8) ?u64 {
     const trimmed = std.mem.trim(u8, str, " \t\r\n");
     if (trimmed.len == 0) return null;
-    
+
     var value = trimmed;
     var multiplier: u64 = 1;
-    
+
     if (std.mem.endsWith(u8, trimmed, "K") or std.mem.endsWith(u8, trimmed, "k")) {
         value = trimmed[0 .. trimmed.len - 1];
         multiplier = 1024;
@@ -43,7 +44,7 @@ pub fn parseSize(str: []const u8) ?u64 {
         value = trimmed[0 .. trimmed.len - 1];
         multiplier = 1024 * 1024 * 1024;
     }
-    
+
     const num = std.fmt.parseInt(u64, value, 10) catch return null;
     return num * multiplier;
 }
@@ -58,19 +59,19 @@ pub fn parseHexColor(str: []const u8) ?u32 {
     if (trimmed.len > 0 and trimmed[0] == '#') {
         trimmed = trimmed[1..];
     }
-    
+
     if (trimmed.len == 3) {
         // Short form #RGB -> #RRGGBB
         const r = std.fmt.parseInt(u8, trimmed[0..1], 16) catch return null;
         const g = std.fmt.parseInt(u8, trimmed[1..2], 16) catch return null;
         const b = std.fmt.parseInt(u8, trimmed[2..3], 16) catch return null;
         return (@as(u32, r) << 20) | (@as(u32, r) << 16) |
-               (@as(u32, g) << 12) | (@as(u32, g) << 8) |
-               (@as(u32, b) << 4) | @as(u32, b);
+            (@as(u32, g) << 12) | (@as(u32, g) << 8) |
+            (@as(u32, b) << 4) | @as(u32, b);
     } else if (trimmed.len == 6) {
         return std.fmt.parseInt(u32, trimmed, 16) catch null;
     }
-    
+
     return null;
 }
 
@@ -88,14 +89,14 @@ pub fn extractName(author_line: []const u8) []const u8 {
 pub fn parseCommitMessage(message: []const u8) struct { subject: []const u8, body: []const u8 } {
     const first_newline = std.mem.indexOf(u8, message, "\n") orelse message.len;
     const subject = std.mem.trim(u8, message[0..first_newline], " \t\r\n");
-    
+
     var body_start = first_newline;
     while (body_start < message.len and (message[body_start] == '\n' or message[body_start] == '\r')) {
         body_start += 1;
     }
-    
+
     const body = if (body_start < message.len) message[body_start..] else "";
-    
+
     return .{ .subject = subject, .body = body };
 }
 
@@ -159,21 +160,21 @@ pub fn normalizeRefName(ref: []const u8) []const u8 {
 
 pub fn isValidSha1(str: []const u8) bool {
     if (str.len != 40) return false;
-    
+
     for (str) |c| {
         if (!std.ascii.isHex(c)) return false;
     }
-    
+
     return true;
 }
 
 pub fn isValidSha256(str: []const u8) bool {
     if (str.len != 64) return false;
-    
+
     for (str) |c| {
         if (!std.ascii.isHex(c)) return false;
     }
-    
+
     return true;
 }
 
@@ -189,35 +190,35 @@ pub fn truncateString(str: []const u8, max_len: usize) []const u8 {
 pub fn parseGitConfig(content: []const u8, allocator: std.mem.Allocator) !std.StringHashMap([]const u8) {
     var config = std.StringHashMap([]const u8).init(allocator);
     errdefer config.deinit();
-    
+
     var lines = std.mem.tokenizeAny(u8, content, "\n\r");
     var current_section: ?[]const u8 = null;
-    
+
     while (lines.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t");
         if (trimmed.len == 0 or trimmed[0] == '#' or trimmed[0] == ';') {
             continue;
         }
-        
+
         if (trimmed[0] == '[' and trimmed[trimmed.len - 1] == ']') {
             // Section header
             current_section = try allocator.dupe(u8, trimmed[1 .. trimmed.len - 1]);
             continue;
         }
-        
+
         // Key-value pair
         const eq_pos = std.mem.indexOf(u8, trimmed, "=") orelse continue;
         const key = std.mem.trim(u8, trimmed[0..eq_pos], " \t");
         const value = std.mem.trim(u8, trimmed[eq_pos + 1 ..], " \t\"");
-        
+
         const full_key = if (current_section) |section|
             try std.fmt.allocPrint(allocator, "{s}.{s}", .{ section, key })
         else
             try allocator.dupe(u8, key);
-        
+
         try config.put(full_key, try allocator.dupe(u8, value));
     }
-    
+
     return config;
 }
 
@@ -229,19 +230,19 @@ pub fn parseAuthorLine(line: []const u8) struct {
 } {
     const name = extractName(line);
     const email = extractEmail(line) orelse "";
-    
+
     // Find timestamp after '>'
     const email_end = std.mem.lastIndexOf(u8, line, ">") orelse line.len;
     const remainder = std.mem.trim(u8, line[email_end + 1 ..], " \t");
-    
+
     var parts = std.mem.tokenizeAny(u8, remainder, " \t");
     const timestamp = if (parts.next()) |ts|
         std.fmt.parseInt(i64, ts, 10) catch 0
     else
         0;
-    
+
     const timezone = parts.next() orelse "+0000";
-    
+
     return .{
         .name = name,
         .email = email,

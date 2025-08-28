@@ -5,29 +5,29 @@ const html = @import("../html.zig");
 pub fn formatAge(writer: anytype, timestamp: i64) !void {
     const now = std.time.timestamp();
     const diff = now - timestamp;
-    
+
     if (diff < 0) {
         try writer.writeAll("in the future");
         return;
     }
-    
+
     if (diff < gitweb.TM_MIN) {
         try writer.print("{d} seconds ago", .{diff});
     } else if (diff < gitweb.TM_HOUR) {
         const mins = @divFloor(diff, gitweb.TM_MIN);
-        try writer.print("{d} minute{s} ago", .{mins, if (mins == 1) "" else "s"});
+        try writer.print("{d} minute{s} ago", .{ mins, if (mins == 1) "" else "s" });
     } else if (diff < gitweb.TM_DAY) {
         const hours = @divFloor(diff, gitweb.TM_HOUR);
-        try writer.print("{d} hour{s} ago", .{hours, if (hours == 1) "" else "s"});
+        try writer.print("{d} hour{s} ago", .{ hours, if (hours == 1) "" else "s" });
     } else if (diff < gitweb.TM_WEEK) {
         const days = @divFloor(diff, gitweb.TM_DAY);
-        try writer.print("{d} day{s} ago", .{days, if (days == 1) "" else "s"});
+        try writer.print("{d} day{s} ago", .{ days, if (days == 1) "" else "s" });
     } else if (diff < gitweb.TM_YEAR) {
         const weeks = @divFloor(diff, gitweb.TM_WEEK);
-        try writer.print("{d} week{s} ago", .{weeks, if (weeks == 1) "" else "s"});
+        try writer.print("{d} week{s} ago", .{ weeks, if (weeks == 1) "" else "s" });
     } else {
         const years = @divFloor(diff, gitweb.TM_YEAR);
-        try writer.print("{d} year{s} ago", .{years, if (years == 1) "" else "s"});
+        try writer.print("{d} year{s} ago", .{ years, if (years == 1) "" else "s" });
     }
 }
 
@@ -35,16 +35,16 @@ pub fn formatBytes(writer: anytype, bytes: u64) !void {
     const units = [_][]const u8{ "B", "KB", "MB", "GB", "TB" };
     var size = @as(f64, @floatFromInt(bytes));
     var unit_idx: usize = 0;
-    
+
     while (size >= 1024 and unit_idx < units.len - 1) {
         size /= 1024;
         unit_idx += 1;
     }
-    
+
     if (unit_idx == 0) {
-        try writer.print("{d} {s}", .{bytes, units[unit_idx]});
+        try writer.print("{d} {s}", .{ bytes, units[unit_idx] });
     } else {
-        try writer.print("{d:.2} {s}", .{size, units[unit_idx]});
+        try writer.print("{d:.2} {s}", .{ size, units[unit_idx] });
     }
 }
 
@@ -80,7 +80,7 @@ pub fn writeTreeLink(ctx: *gitweb.Context, writer: anytype, oid: []const u8, pat
 pub fn writeDiffLink(ctx: *gitweb.Context, writer: anytype, old_oid: []const u8, new_oid: []const u8, path: ?[]const u8, text: ?[]const u8) !void {
     const display_text = text orelse "diff";
     try writer.writeAll("<a href='?cmd=diff");
-    try writer.print("&id={s}&id2={s}", .{new_oid, old_oid});
+    try writer.print("&id={s}&id2={s}", .{ new_oid, old_oid });
     if (path) |p| {
         try writer.writeAll("&path=");
         try html.urlEncode(writer, p);
@@ -94,26 +94,26 @@ pub fn writeDiffLink(ctx: *gitweb.Context, writer: anytype, old_oid: []const u8,
 pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) !void {
     try writer.writeAll("<div class='path'>");
     try writer.writeAll("path: ");
-    
+
     var iter = std.mem.tokenizeAny(u8, path, "/");
     var accumulated = std.ArrayList(u8){
         .items = &.{},
         .capacity = 0,
     };
     defer accumulated.deinit(ctx.allocator);
-    
+
     var first = true;
     while (iter.next()) |segment| {
         if (!first) {
             try writer.writeAll(" / ");
         }
         first = false;
-        
+
         if (accumulated.items.len > 0) {
             try accumulated.append(ctx.allocator, '/');
         }
         try accumulated.appendSlice(ctx.allocator, segment);
-        
+
         if (iter.peek() != null) {
             try writer.print("<a href='?cmd=tree&path={s}'>", .{accumulated.items});
             try html.htmlEscape(writer, segment);
@@ -122,6 +122,6 @@ pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) 
             try html.htmlEscape(writer, segment);
         }
     }
-    
+
     try writer.writeAll("</div>\n");
 }

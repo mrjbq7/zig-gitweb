@@ -2,16 +2,16 @@ const std = @import("std");
 const gitweb = @import("gitweb.zig");
 
 pub fn loadConfig(ctx: *gitweb.Context) !void {
-    // First check environment variable
-    const config_file = std.process.getEnvVarOwned(ctx.allocator, "CGIT_CONFIG") catch |err| blk: {
+    // Check GITWEB_CONFIG environment variable or use default location
+    const config_file = std.process.getEnvVarOwned(ctx.allocator, "GITWEB_CONFIG") catch |err| blk: {
         if (err == error.EnvironmentVariableNotFound) {
             // Fall back to default location
-            break :blk try ctx.allocator.dupe(u8, "/etc/cgitrc");
+            break :blk try ctx.allocator.dupe(u8, "/etc/gitweb.conf");
         }
         return err;
     };
     defer ctx.allocator.free(config_file);
-    
+
     // Try to open and parse config file
     const file = std.fs.openFileAbsolute(config_file, .{}) catch |err| {
         if (err == error.FileNotFound) {
@@ -21,24 +21,24 @@ pub fn loadConfig(ctx: *gitweb.Context) !void {
         return err;
     };
     defer file.close();
-    
+
     const content = try file.readToEndAlloc(ctx.allocator, std.math.maxInt(usize));
     defer ctx.allocator.free(content);
-    
+
     try parseConfig(ctx, content);
 }
 
 fn parseConfig(ctx: *gitweb.Context, content: []const u8) !void {
     var lines = std.mem.tokenizeAny(u8, content, "\n");
     var current_repo: ?*gitweb.Repo = null;
-    
+
     while (lines.next()) |line| {
         // Skip comments and empty lines
         const trimmed = std.mem.trim(u8, line, " \t\r");
         if (trimmed.len == 0 or trimmed[0] == '#') {
             continue;
         }
-        
+
         // Check for repo section
         if (std.mem.startsWith(u8, trimmed, "repo.")) {
             const repo_section = trimmed[5..];
@@ -49,13 +49,13 @@ fn parseConfig(ctx: *gitweb.Context, content: []const u8) !void {
             }
             continue;
         }
-        
+
         // Parse key=value
         const eq_pos = std.mem.indexOf(u8, trimmed, "=");
         if (eq_pos) |pos| {
             const key = std.mem.trim(u8, trimmed[0..pos], " \t");
-            const value = std.mem.trim(u8, trimmed[pos + 1..], " \t\"");
-            
+            const value = std.mem.trim(u8, trimmed[pos + 1 ..], " \t\"");
+
             if (current_repo) |repo| {
                 try setRepoConfig(repo, key, value);
             } else {

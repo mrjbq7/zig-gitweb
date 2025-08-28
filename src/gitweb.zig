@@ -119,7 +119,7 @@ pub const Repo = struct {
         if (self.path.len > 0) self.allocator.free(self.path);
         if (self.url.len > 0) self.allocator.free(self.url);
         if (self.desc.len > 0) self.allocator.free(self.desc);
-        
+
         self.readme.deinit(self.allocator);
         self.submodules.deinit();
         self.allocator.destroy(self);
@@ -222,7 +222,7 @@ pub const Context = struct {
     cmd: []const u8,
     query: Query,
     env: Environment,
-    
+
     pub fn init(allocator: std.mem.Allocator) !Context {
         return Context{
             .allocator = allocator,
@@ -244,36 +244,66 @@ pub const Context = struct {
 
     pub fn parseRequest(self: *Context, query_string: []const u8, path_info: []const u8, method: []const u8) !void {
         _ = method; // TODO: Handle POST requests
-        
+
         // Parse query string
         try self.parseQueryString(query_string);
-        
+
         // Parse path info to determine repo and command
         try self.parsePath(path_info);
-        
+
         // Load repository if specified
         if (self.query.get("r")) |repo_name| {
             try self.loadRepository(repo_name);
         }
     }
-    
+
     fn loadRepository(self: *Context, repo_name: []const u8) !void {
+        // First, try to find the repository in our configuration
+        // TODO: Check if repository is already configured in a repo list
+
         // Create a new repo instance
         self.repo = try Repo.init(self.allocator);
-        
+
         // Set basic repo properties
         self.repo.?.name = try self.allocator.dupe(u8, repo_name);
-        
-        // Construct repository path - assuming repos are in ~/git/
-        const home = std.process.getEnvVarOwned(self.allocator, "HOME") catch "/Users/jbenedik";
-        defer self.allocator.free(home);
-        
-        const repo_path = try std.fmt.allocPrint(self.allocator, "{s}/git/{s}.git", .{ home, repo_name });
+        self.repo.?.url = try self.allocator.dupe(u8, repo_name);
+
+        // Determine repository path
+        var repo_path: []const u8 = undefined;
+
+        if (self.cfg.scanpath) |scan_path| {
+            // Look for repository under scan-path
+            // Try both with and without .git extension
+            const path_with_git = try std.fmt.allocPrint(self.allocator, "{s}/{s}.git", .{ scan_path, repo_name });
+            defer self.allocator.free(path_with_git);
+
+            const path_without_git = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ scan_path, repo_name });
+            defer self.allocator.free(path_without_git);
+
+            // Check which path exists
+            if (std.fs.accessAbsolute(path_with_git, .{})) |_| {
+                repo_path = try self.allocator.dupe(u8, path_with_git);
+            } else |_| {
+                if (std.fs.accessAbsolute(path_without_git, .{})) |_| {
+                    repo_path = try self.allocator.dupe(u8, path_without_git);
+                } else |_| {
+                    // Repository not found under scan-path
+                    return error.RepositoryNotFound;
+                }
+            }
+        } else {
+            // No scan-path configured, fall back to default
+            // This maintains backward compatibility
+            const home = std.process.getEnvVarOwned(self.allocator, "HOME") catch "/home";
+            defer self.allocator.free(home);
+
+            repo_path = try std.fmt.allocPrint(self.allocator, "{s}/git/{s}.git", .{ home, repo_name });
+        }
+
         self.repo.?.path = repo_path;
-        
+
         // Set some defaults
         self.repo.?.desc = try self.allocator.dupe(u8, "");
-        self.repo.?.url = try self.allocator.dupe(u8, repo_name);
     }
 
     fn parseQueryString(self: *Context, query_string: []const u8) !void {
@@ -282,7 +312,7 @@ pub const Context = struct {
             const eq_pos = std.mem.indexOf(u8, param, "=");
             if (eq_pos) |pos| {
                 const key = param[0..pos];
-                const value = param[pos + 1..];
+                const value = param[pos + 1 ..];
                 try self.query.set(key, value);
             }
         }
@@ -294,13 +324,13 @@ pub const Context = struct {
         if (path_info.len == 0 or path_info[0] != '/') {
             return;
         }
-        
+
         var iter = std.mem.tokenizeAny(u8, path_info[1..], "/");
         if (iter.next()) |repo_name| {
             // TODO: Load repo by name
             _ = repo_name;
         }
-        
+
         if (iter.next()) |cmd| {
             self.cmd = cmd;
         }
@@ -396,21 +426,21 @@ pub const Page = struct {
 
 pub const Query = struct {
     params: std.StringHashMap([]const u8),
-    
+
     pub fn init(allocator: std.mem.Allocator) Query {
         return Query{
             .params = std.StringHashMap([]const u8).init(allocator),
         };
     }
-    
+
     pub fn deinit(self: *Query) void {
         self.params.deinit();
     }
-    
+
     pub fn set(self: *Query, key: []const u8, value: []const u8) !void {
         try self.params.put(key, value);
     }
-    
+
     pub fn get(self: *Query, key: []const u8) ?[]const u8 {
         return self.params.get(key);
     }

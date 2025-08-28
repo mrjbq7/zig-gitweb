@@ -11,7 +11,7 @@ pub const ConfigParser = struct {
     current_repo: ?*gitweb.Repo,
     line_number: u32,
     file_path: []const u8,
-    
+
     pub fn init(allocator: std.mem.Allocator) ConfigParser {
         return .{
             .allocator = allocator,
@@ -27,98 +27,100 @@ pub const ConfigParser = struct {
             .file_path = "",
         };
     }
-    
+
     pub fn deinit(self: *ConfigParser) void {
         self.callbacks.deinit();
         self.includes.deinit(self.allocator);
         self.macros.deinit();
     }
-    
+
     pub fn registerCallback(self: *ConfigParser, key: []const u8, callback: *const fn (ctx: *gitweb.Context, key: []const u8, value: []const u8) anyerror!void) !void {
         try self.callbacks.put(key, callback);
     }
-    
+
     pub fn parseFile(self: *ConfigParser, ctx: *gitweb.Context, path: []const u8) !void {
         self.file_path = path;
         self.line_number = 0;
-        
+
         const file = try std.fs.openFileAbsolute(path, .{});
         defer file.close();
-        
+
         const content = try file.readToEndAlloc(self.allocator, std.math.maxInt(usize));
         defer self.allocator.free(content);
-        
+
         try self.parseContent(ctx, content);
     }
-    
+
     pub fn parseContent(self: *ConfigParser, ctx: *gitweb.Context, content: []const u8) !void {
         var lines = std.mem.split(u8, content, "\n");
-        
+
         while (lines.next()) |line| {
             self.line_number += 1;
             try self.parseLine(ctx, line);
         }
     }
-    
+
     fn parseLine(self: *ConfigParser, ctx: *gitweb.Context, line: []const u8) !void {
         // Remove comments
         const comment_pos = std.mem.indexOf(u8, line, "#");
         const effective_line = if (comment_pos) |pos| line[0..pos] else line;
-        
+
         // Trim whitespace
         const trimmed = std.mem.trim(u8, effective_line, " \t\r");
         if (trimmed.len == 0) return;
-        
+
         // Check for directives
         if (std.mem.startsWith(u8, trimmed, "@")) {
             try self.handleDirective(ctx, trimmed[1..]);
             return;
         }
-        
+
         // Check for section headers
         if (trimmed[0] == '[' and trimmed[trimmed.len - 1] == ']') {
             self.current_section = try self.allocator.dupe(u8, trimmed[1 .. trimmed.len - 1]);
-            
+
             // Check if this is a repo section
-            if (std.mem.eql(u8, self.current_section.?, "repo") or 
-                std.mem.startsWith(u8, self.current_section.?, "repo:")) {
+            if (std.mem.eql(u8, self.current_section.?, "repo") or
+                std.mem.startsWith(u8, self.current_section.?, "repo:"))
+            {
                 // Start new repository
                 self.current_repo = try gitweb.Repo.init(ctx.allocator);
                 // TODO: Add repo to context's repo list
             }
             return;
         }
-        
+
         // Parse key=value pairs
         const eq_pos = std.mem.indexOf(u8, trimmed, "=");
         if (eq_pos) |pos| {
             const key = std.mem.trim(u8, trimmed[0..pos], " \t");
             var value = std.mem.trim(u8, trimmed[pos + 1 ..], " \t");
-            
+
             // Remove quotes if present
-            if (value.len >= 2 and 
+            if (value.len >= 2 and
                 ((value[0] == '"' and value[value.len - 1] == '"') or
-                 (value[0] == '\'' and value[value.len - 1] == '\''))) {
+                    (value[0] == '\'' and value[value.len - 1] == '\'')))
+            {
                 value = value[1 .. value.len - 1];
             }
-            
+
             // Expand macros
             value = try self.expandMacros(value);
-            
+
             // Handle the key-value pair
             try self.handleKeyValue(ctx, key, value);
         }
     }
-    
+
     fn handleDirective(self: *ConfigParser, ctx: *gitweb.Context, directive: []const u8) !void {
         var parts = std.mem.tokenizeAny(u8, directive, " \t");
         const cmd = parts.next() orelse return;
-        
+
         if (std.mem.eql(u8, cmd, "include")) {
             const path = parts.next() orelse return;
             const expanded_path = try self.expandMacros(path);
             try self.includes.append(self.allocator, expanded_path);
-            
+
             // Parse included file
             self.parseFile(ctx, expanded_path) catch |err| {
                 std.log.warn("Failed to include {s}: {}", .{ expanded_path, err });
@@ -139,14 +141,14 @@ pub const ConfigParser = struct {
             // TODO: End conditional parsing
         }
     }
-    
+
     fn handleKeyValue(self: *ConfigParser, ctx: *gitweb.Context, key: []const u8, value: []const u8) !void {
         // Check for registered callbacks
         if (self.callbacks.get(key)) |callback| {
             try callback(ctx, key, value);
             return;
         }
-        
+
         // If we're in a repo section, handle repo-specific config
         if (self.current_repo) |repo| {
             try setRepoConfig(repo, key, value);
@@ -155,14 +157,14 @@ pub const ConfigParser = struct {
             try setGlobalConfig(ctx, key, value);
         }
     }
-    
+
     fn expandMacros(self: *ConfigParser, value: []const u8) ![]const u8 {
         var result = std.ArrayList(u8){
             .items = &.{},
             .capacity = 0,
         };
         defer result.deinit(self.allocator);
-        
+
         var i: usize = 0;
         while (i < value.len) {
             if (value[i] == '$' and i + 1 < value.len and value[i + 1] == '{') {
@@ -172,10 +174,10 @@ pub const ConfigParser = struct {
                 while (end < value.len and value[end] != '}') {
                     end += 1;
                 }
-                
+
                 if (end < value.len) {
                     const macro_name = value[start..end];
-                    
+
                     // Try to find macro definition
                     if (self.macros.get(macro_name)) |macro_value| {
                         try result.appendSlice(self.allocator, macro_value);
@@ -186,19 +188,19 @@ pub const ConfigParser = struct {
                         // Keep the original text if macro not found
                         try result.appendSlice(self.allocator, value[i .. end + 1]);
                     }
-                    
+
                     i = end + 1;
                     continue;
                 }
             }
-            
+
             try result.append(self.allocator, value[i]);
             i += 1;
         }
-        
+
         return result.toOwnedSlice(self.allocator);
     }
-    
+
     fn setGlobalConfig(ctx: *gitweb.Context, key: []const u8, value: []const u8) !void {
         if (std.mem.eql(u8, key, "cache-root")) {
             ctx.cfg.cache_root = try ctx.allocator.dupe(u8, value);
@@ -257,7 +259,7 @@ pub const ConfigParser = struct {
             try ctx.cfg.mimetypes.put(try ctx.allocator.dupe(u8, ext), try ctx.allocator.dupe(u8, value));
         }
     }
-    
+
     fn setRepoConfig(repo: *gitweb.Repo, key: []const u8, value: []const u8) !void {
         if (std.mem.eql(u8, key, "url")) {
             repo.url = try repo.allocator.dupe(u8, value);
