@@ -1,0 +1,28 @@
+# Robots exclusion file for zgit
+User-agent: *
+Allow: /
+
+# Disallow access to git internals
+Disallow: /*.git
+Disallow: /*.git/
+Disallow: /*/objects/
+Disallow: /*/refs/
+Disallow: /*/hooks/
+Disallow: /*/info/
+Disallow: /*/logs/
+
+# Disallow snapshots to prevent bandwidth abuse
+Disallow: /*snapshot*
+Disallow: /*format=tar*
+Disallow: /*format=zip*
+
+# Allow well-behaved crawlers more access
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Crawl-delay for less capable bots
+User-agent: *
+Crawl-delay: 1
