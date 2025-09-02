@@ -236,20 +236,33 @@ fn renderRecentActivity(ctx: *gitweb.Context, writer: anytype, stats_data: *cons
 }
 
 fn renderCommitsByTimeChart(writer: anytype, stats_data: *const StatsData) !void {
+    // Sort dates chronologically
+    const DateEntry = struct { date: []const u8, count: usize };
+    const allocator = std.heap.page_allocator;
+    var date_list = std.ArrayList(DateEntry).empty;
+    defer date_list.deinit(allocator);
+
+    var date_iter = stats_data.commits_by_date.iterator();
+    while (date_iter.next()) |entry| {
+        try date_list.append(allocator, .{ .date = entry.key_ptr.*, .count = entry.value_ptr.* });
+    }
+
+    std.mem.sort(DateEntry, date_list.items, {}, struct {
+        fn lessThan(_: void, a: DateEntry, b: DateEntry) bool {
+            return std.mem.order(u8, a.date, b.date) == .lt;
+        }
+    }.lessThan);
+
     try writer.writeAll("<script>\n");
     try writer.writeAll("new Chart(document.getElementById('commits-by-time'), {\n");
     try writer.writeAll("  type: 'line',\n");
     try writer.writeAll("  data: {\n");
 
-    // Generate labels and data from commits_by_date
+    // Generate labels and data from sorted dates (show all data)
     try writer.writeAll("    labels: [");
-    var date_iter = stats_data.commits_by_date.iterator();
-    var date_count: usize = 0;
-    while (date_iter.next()) |entry| {
-        if (date_count > 0) try writer.writeAll(", ");
-        try writer.print("'{s}'", .{entry.key_ptr.*});
-        date_count += 1;
-        if (date_count >= 12) break; // Limit to 12 months for readability
+    for (date_list.items, 0..) |entry, i| {
+        if (i > 0) try writer.writeAll(", ");
+        try writer.print("'{s}'", .{entry.date});
     }
     try writer.writeAll("],\n");
 
@@ -257,13 +270,9 @@ fn renderCommitsByTimeChart(writer: anytype, stats_data: *const StatsData) !void
     try writer.writeAll("      label: 'Commits',\n");
     try writer.writeAll("      data: [");
 
-    date_iter = stats_data.commits_by_date.iterator();
-    date_count = 0;
-    while (date_iter.next()) |entry| {
-        if (date_count > 0) try writer.writeAll(", ");
-        try writer.print("{d}", .{entry.value_ptr.*});
-        date_count += 1;
-        if (date_count >= 12) break;
+    for (date_list.items, 0..) |entry, i| {
+        if (i > 0) try writer.writeAll(", ");
+        try writer.print("{d}", .{entry.count});
     }
 
     try writer.writeAll("],\n");
@@ -282,6 +291,23 @@ fn renderCommitsByTimeChart(writer: anytype, stats_data: *const StatsData) !void
 }
 
 fn renderCommitsByAuthorChart(writer: anytype, stats_data: *const StatsData) !void {
+    // Sort authors by commit count
+    const AuthorEntry = struct { name: []const u8, count: usize };
+    const allocator = std.heap.page_allocator;
+    var author_list = std.ArrayList(AuthorEntry).empty;
+    defer author_list.deinit(allocator);
+
+    var iter = stats_data.authors.iterator();
+    while (iter.next()) |entry| {
+        try author_list.append(allocator, .{ .name = entry.key_ptr.*, .count = entry.value_ptr.* });
+    }
+
+    std.mem.sort(AuthorEntry, author_list.items, {}, struct {
+        fn lessThan(_: void, a: AuthorEntry, b: AuthorEntry) bool {
+            return a.count > b.count;
+        }
+    }.lessThan);
+
     try writer.writeAll("<script>\n");
     try writer.writeAll("new Chart(document.getElementById('commits-by-author'), {\n");
     try writer.writeAll("  type: 'bar',\n");
@@ -289,13 +315,10 @@ fn renderCommitsByAuthorChart(writer: anytype, stats_data: *const StatsData) !vo
 
     // Get top 10 authors
     try writer.writeAll("    labels: [");
-    var iter = stats_data.authors.iterator();
-    var count: usize = 0;
-    while (iter.next()) |entry| {
-        if (count > 0) try writer.writeAll(", ");
-        try writer.print("'{s}'", .{entry.key_ptr.*});
-        count += 1;
-        if (count >= 10) break;
+    const limit = @min(10, author_list.items.len);
+    for (author_list.items[0..limit], 0..) |author, i| {
+        if (i > 0) try writer.writeAll(", ");
+        try writer.print("'{s}'", .{author.name});
     }
     try writer.writeAll("],\n");
 
@@ -303,13 +326,9 @@ fn renderCommitsByAuthorChart(writer: anytype, stats_data: *const StatsData) !vo
     try writer.writeAll("      label: 'Commits',\n");
     try writer.writeAll("      data: [");
 
-    iter = stats_data.authors.iterator();
-    count = 0;
-    while (iter.next()) |entry| {
-        if (count > 0) try writer.writeAll(", ");
-        try writer.print("{d}", .{entry.value_ptr.*});
-        count += 1;
-        if (count >= 10) break;
+    for (author_list.items[0..limit], 0..) |author, i| {
+        if (i > 0) try writer.writeAll(", ");
+        try writer.print("{d}", .{author.count});
     }
 
     try writer.writeAll("],\n");
