@@ -22,7 +22,6 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
     defer git_repo.close();
 
     // Get the tree to display
-    const ref_name = ctx.query.get("h") orelse "HEAD";
     const path = ctx.query.get("path") orelse "";
 
     // Show breadcrumb if we have a path
@@ -30,22 +29,42 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
         try shared.writeBreadcrumb(ctx, writer, path);
     }
 
-    // Get the reference
-    var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch {
-        try writer.writeAll("<p>Unable to find reference.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
-    defer ref.free();
+    // Get the commit - try id first, then h, then default to HEAD
+    var commit = blk: {
+        if (ctx.query.get("id")) |id_str| {
+            // Try to parse as OID
+            var oid: git.c.git_oid = undefined;
+            if (git.c.git_oid_fromstr(&oid, id_str.ptr) == 0) {
+                break :blk try git_repo.lookupCommit(&oid);
+            }
+        }
 
-    // Get the commit
-    const target = ref.target() orelse {
-        try writer.writeAll("<p>Invalid reference target.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
+        // Try branch/ref name
+        const ref_name = ctx.query.get("h") orelse "HEAD";
 
-    var commit = try git_repo.lookupCommit(target);
+        // Get the reference
+        var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch |err| {
+            std.debug.print("tree: Failed to get reference '{s}': {}\n", .{ ref_name, err });
+            try writer.writeAll("<p>Unable to find reference.</p>\n");
+            try writer.writeAll("</div>\n");
+            return;
+        };
+        defer ref.free();
+
+        // Resolve the reference to a commit
+        // If it's a symbolic ref (like HEAD), peel it to a commit
+        var commit_obj = ref.peel(git.c.GIT_OBJECT_COMMIT) catch |err| {
+            std.debug.print("tree: Failed to peel reference to commit: {}\n", .{err});
+            try writer.writeAll("<p>Unable to resolve reference to commit.</p>\n");
+            try writer.writeAll("</div>\n");
+            return;
+        };
+        defer commit_obj.free();
+
+        // Cast the object to a commit
+        const commit_ptr = @as(*git.c.git_commit, @ptrCast(commit_obj.obj));
+        break :blk git.Commit{ .commit = commit_ptr };
+    };
     defer commit.free();
 
     // Get the tree
@@ -98,7 +117,11 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
     if (base_path.len > 0) {
         try html.writeTableRow(writer, null);
         try writer.writeAll("<td>d---------</td>");
-        try writer.writeAll("<td colspan='3'><a href='?cmd=tree");
+        try writer.writeAll("<td colspan='3'><a href='?");
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
+        }
+        try writer.writeAll("cmd=tree");
 
         const last_slash = std.mem.lastIndexOf(u8, base_path, "/");
         if (last_slash) |pos| {
@@ -164,9 +187,17 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         }
 
         if (entry_type == c.GIT_OBJECT_TREE) {
-            try writer.print("<a href='?cmd=tree&path={s}'>{s}/</a>", .{ full_path, entry_name });
+            try writer.writeAll("<a href='?");
+            if (ctx.repo) |r| {
+                try writer.print("r={s}&", .{r.name});
+            }
+            try writer.print("cmd=tree&path={s}'>{s}/</a>", .{ full_path, entry_name });
         } else {
-            try writer.print("<a href='?cmd=blob&path={s}'>{s}</a>", .{ full_path, entry_name });
+            try writer.writeAll("<a href='?");
+            if (ctx.repo) |r| {
+                try writer.print("r={s}&", .{r.name});
+            }
+            try writer.print("cmd=blob&path={s}'>{s}</a>", .{ full_path, entry_name });
         }
         try writer.writeAll("</td>");
 

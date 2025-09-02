@@ -1,6 +1,7 @@
 const std = @import("std");
 const gitweb = @import("gitweb.zig");
 const main = @import("main.zig");
+const git = @import("git.zig");
 
 pub fn writeHeader(ctx: *gitweb.Context, writer: anytype) !void {
     if (ctx.cfg.noheader) {
@@ -39,9 +40,10 @@ pub fn writeHeader(ctx: *gitweb.Context, writer: anytype) !void {
     try writer.writeAll("</td></tr>\n");
     try writer.writeAll("</table>\n");
 
-    // Navigation tabs
+    // Navigation tabs and branch selector
     if (ctx.repo) |repo| {
         try writeRepoTabs(ctx, repo, writer);
+        try writeBranchSelector(ctx, repo, writer);
     }
 
     try writer.writeAll("<div class='content'>\n");
@@ -75,38 +77,108 @@ pub fn writeFooter(ctx: *gitweb.Context, writer: anytype) !void {
 fn writeRepoTabs(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
     try writer.writeAll("<table class='tabs'><tr><td>\n");
 
+    const current_branch = ctx.query.get("h");
+
     // Summary tab
-    try writeTab(writer, "summary", "summary", ctx.cmd);
+    try writeTab(writer, "summary", "summary", ctx.cmd, repo.name, current_branch);
 
     // Refs tab
-    try writeTab(writer, "refs", "refs", ctx.cmd);
+    try writeTab(writer, "refs", "refs", ctx.cmd, repo.name, current_branch);
 
     // Log tab
-    try writeTab(writer, "log", "log", ctx.cmd);
+    try writeTab(writer, "log", "log", ctx.cmd, repo.name, current_branch);
 
     // Tree tab
-    try writeTab(writer, "tree", "tree", ctx.cmd);
+    try writeTab(writer, "tree", "tree", ctx.cmd, repo.name, current_branch);
 
     // Commit tab
-    try writeTab(writer, "commit", "commit", ctx.cmd);
+    try writeTab(writer, "commit", "commit", ctx.cmd, repo.name, current_branch);
 
     // Diff tab
-    try writeTab(writer, "diff", "diff", ctx.cmd);
+    try writeTab(writer, "diff", "diff", ctx.cmd, repo.name, current_branch);
 
     // Stats tab
     if (repo.max_stats != null) {
-        try writeTab(writer, "stats", "stats", ctx.cmd);
+        try writeTab(writer, "stats", "stats", ctx.cmd, repo.name, current_branch);
     }
 
     try writer.writeAll("</td></tr></table>\n");
 }
 
-fn writeTab(writer: anytype, name: []const u8, cmd: []const u8, current_cmd: []const u8) !void {
+fn writeTab(writer: anytype, name: []const u8, cmd: []const u8, current_cmd: []const u8, repo_name: []const u8, branch: ?[]const u8) !void {
     if (std.mem.eql(u8, cmd, current_cmd)) {
-        try writer.print("<a class='active' href='?cmd={s}'>{s}</a>", .{ cmd, name });
+        try writer.print("<a class='active' href='?r={s}&cmd={s}", .{ repo_name, cmd });
+        if (branch) |b| {
+            try writer.print("&h={s}", .{b});
+        }
+        try writer.print("'>{s}</a>", .{name});
     } else {
-        try writer.print("<a href='?cmd={s}'>{s}</a>", .{ cmd, name });
+        try writer.print("<a href='?r={s}&cmd={s}", .{ repo_name, cmd });
+        if (branch) |b| {
+            try writer.print("&h={s}", .{b});
+        }
+        try writer.print("'>{s}</a>", .{name});
     }
+}
+
+fn writeBranchSelector(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
+    try writer.writeAll("<div class='branch-selector'>\n");
+    try writer.writeAll("<form method='get' action=''>\n");
+
+    // Include hidden fields for current parameters
+    try writer.print("<input type='hidden' name='r' value='{s}' />\n", .{repo.name});
+    if (ctx.cmd.len > 0) {
+        try writer.print("<input type='hidden' name='cmd' value='{s}' />\n", .{ctx.cmd});
+    }
+
+    // Get current branch from query or use HEAD
+    const current_branch = ctx.query.get("h") orelse "HEAD";
+
+    try writer.writeAll("<label for='branch-select'>Branch: </label>\n");
+    try writer.writeAll("<select name='h' id='branch-select' onchange='this.form.submit()'>\n");
+
+    // Open repository to get branches
+    var git_repo = git.Repository.open(repo.path) catch {
+        try writer.writeAll("<option value='HEAD'>HEAD</option>\n");
+        try writer.writeAll("</select>\n");
+        try writer.writeAll("</form>\n");
+        try writer.writeAll("</div>\n");
+        return;
+    };
+    defer git_repo.close();
+
+    // Add HEAD option
+    if (std.mem.eql(u8, current_branch, "HEAD")) {
+        try writer.writeAll("<option value='HEAD' selected>HEAD</option>\n");
+    } else {
+        try writer.writeAll("<option value='HEAD'>HEAD</option>\n");
+    }
+
+    // Get and list branches
+    const branches = git_repo.getBranches(ctx.allocator) catch {
+        try writer.writeAll("</select>\n");
+        try writer.writeAll("</form>\n");
+        try writer.writeAll("</div>\n");
+        return;
+    };
+    defer ctx.allocator.free(branches);
+
+    for (branches) |branch| {
+        if (!branch.is_remote) {
+            defer @constCast(&branch.ref).free();
+
+            if (std.mem.eql(u8, current_branch, branch.name)) {
+                try writer.print("<option value='{s}' selected>{s}</option>\n", .{ branch.name, branch.name });
+            } else {
+                try writer.print("<option value='{s}'>{s}</option>\n", .{ branch.name, branch.name });
+            }
+        }
+    }
+
+    try writer.writeAll("</select>\n");
+    try writer.writeAll("<noscript><input type='submit' value='Switch' /></noscript>\n");
+    try writer.writeAll("</form>\n");
+    try writer.writeAll("</div>\n");
 }
 
 fn includeFile(writer: anytype, path: []const u8) !void {

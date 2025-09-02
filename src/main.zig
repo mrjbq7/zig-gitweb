@@ -72,7 +72,26 @@ fn processCgiRequest(ctx: *gitweb.Context) !void {
         }
     }
 
-    // Generate response
+    // Check if this is a plain content request
+    if (std.mem.eql(u8, ctx.cmd, "plain")) {
+        // We need to buffer the content so we can determine MIME type first
+        var content_buffer: std.ArrayList(u8) = .empty;
+        defer content_buffer.deinit(ctx.allocator);
+
+        // Call the plain handler to set MIME type and generate content
+        try cmd.dispatch(ctx, content_buffer.writer(ctx.allocator));
+
+        // Now output headers with correct MIME type
+        try stdout.print("Content-Type: {s}\r\n", .{ctx.page.mimetype});
+        try stdout.writeAll("Cache-Control: no-cache, no-store\r\n");
+        try stdout.writeAll("\r\n");
+
+        // Output the content
+        try stdout.writeAll(content_buffer.items);
+        return;
+    }
+
+    // Generate HTML response
     var buffer: std.ArrayList(u8) = .empty;
     defer buffer.deinit(ctx.allocator);
 

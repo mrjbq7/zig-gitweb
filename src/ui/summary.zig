@@ -59,7 +59,22 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
     var walk = try git_repo.revwalk();
     defer walk.free();
 
-    try walk.pushHead();
+    // Get the branch from query parameter or use HEAD
+    const ref_name = ctx.query.get("h") orelse "HEAD";
+    if (std.mem.eql(u8, ref_name, "HEAD")) {
+        try walk.pushHead();
+    } else {
+        // Push the specific branch reference
+        const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+        defer ctx.allocator.free(full_ref);
+        walk.pushRef(full_ref) catch {
+            // If the full ref doesn't work, try the name as-is (might be a tag or full ref already)
+            walk.pushRef(ref_name) catch {
+                // Fall back to HEAD if the reference doesn't exist
+                try walk.pushHead();
+            };
+        };
+    }
     walk.setSorting(@import("../git.zig").c.GIT_SORT_TIME);
 
     try html.writeTableHeader(writer, &[_][]const u8{ "Age", "Commit", "Author", "Message" });
@@ -145,7 +160,11 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
 
             // Branch name
             try writer.writeAll("<td>");
-            try writer.print("<a href='?cmd=log&h={s}'>{s}</a>", .{ branch.name, branch.name });
+            if (ctx.repo) |r| {
+                try writer.print("<a href='?r={s}&h={s}'>{s}</a>", .{ r.name, branch.name, branch.name });
+            } else {
+                try writer.print("<a href='?h={s}'>{s}</a>", .{ branch.name, branch.name });
+            }
             try writer.writeAll("</td>");
 
             // Commit
@@ -194,14 +213,23 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
         return;
     }
 
-    try html.writeTableHeader(writer, &[_][]const u8{ "Tag", "Download", "Author", "Age" });
+    // Structure to hold tag data with timestamp for sorting
+    const TagInfo = struct {
+        tag: git.Tag,
+        timestamp: i64,
+        author_name: []const u8,
+    };
 
-    var shown: u32 = 0;
+    // Collect tag info with timestamps
+    var tag_infos: std.ArrayList(TagInfo) = .empty;
+    defer {
+        for (tag_infos.items) |info| {
+            @constCast(&info.tag.ref).free();
+        }
+        tag_infos.deinit(ctx.allocator);
+    }
+
     for (tags) |tag| {
-        if (shown >= ctx.cfg.summary_tags) break;
-        shown += 1;
-        defer @constCast(&tag.ref).free();
-
         _ = @constCast(&tag.ref).target() orelse continue;
 
         // Try to get tag object or fall back to commit
@@ -213,6 +241,31 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
 
         const author_sig = commit.author();
         const commit_time = commit.time();
+
+        try tag_infos.append(ctx.allocator, TagInfo{
+            .tag = tag,
+            .timestamp = commit_time,
+            .author_name = std.mem.span(author_sig.name),
+        });
+    }
+
+    // Sort tags by timestamp (most recent first)
+    std.mem.sort(TagInfo, tag_infos.items, {}, struct {
+        fn lessThan(_: void, a: TagInfo, b: TagInfo) bool {
+            return a.timestamp > b.timestamp;
+        }
+    }.lessThan);
+
+    try html.writeTableHeader(writer, &[_][]const u8{ "Tag", "Download", "Author", "Age" });
+
+    var shown: u32 = 0;
+    for (tag_infos.items) |info| {
+        if (shown >= ctx.cfg.summary_tags) break;
+        shown += 1;
+
+        const tag = info.tag;
+        const commit_time = info.timestamp;
+        const author_name = info.author_name;
 
         try html.writeTableRow(writer, null);
 
@@ -229,7 +282,7 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
 
         // Author
         try writer.writeAll("<td>");
-        try html.htmlEscape(writer, std.mem.span(author_sig.name));
+        try html.htmlEscape(writer, author_name);
         try writer.writeAll("</td>");
 
         // Age

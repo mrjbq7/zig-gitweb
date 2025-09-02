@@ -49,29 +49,43 @@ const commands = [_]Command{
 };
 
 pub fn dispatch(ctx: *gitweb.Context, writer: anytype) !void {
-    if (std.mem.eql(u8, ctx.cmd, "summary")) return ui_summary.summary(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "about")) return ui_summary.about(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "atom")) return ui_atom.atom(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "blame")) return ui_blame.blame(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "blob")) return ui_blob.blob(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "commit")) return ui_commit.commit(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "diff")) return ui_diff.diff(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "info")) return ui_clone.info(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "log")) return ui_log.log(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "ls_cache")) return lsCache(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "objects")) return ui_clone.objects(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "patch")) return ui_patch.patch(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "plain")) return ui_plain.plain(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "rawdiff")) return ui_diff.rawdiff(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "refs")) return ui_refs.refs(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "repolist")) return ui_repolist.repolist(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "snapshot")) return ui_snapshot.snapshot(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "stats")) return ui_stats.stats(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "tag")) return ui_tag.tag(ctx, writer);
-    if (std.mem.eql(u8, ctx.cmd, "tree")) return ui_tree.tree(ctx, writer);
+    // If no command is specified, default based on whether we have a repo
+    var cmd = ctx.cmd;
+    if (std.mem.eql(u8, cmd, "")) {
+        if (ctx.repo != null) {
+            cmd = "summary";
+        } else {
+            cmd = "repolist";
+        }
+    }
 
-    // Default to summary
-    return ui_summary.summary(ctx, writer);
+    if (std.mem.eql(u8, cmd, "summary")) return ui_summary.summary(ctx, writer);
+    if (std.mem.eql(u8, cmd, "about")) return ui_summary.about(ctx, writer);
+    if (std.mem.eql(u8, cmd, "atom")) return ui_atom.atom(ctx, writer);
+    if (std.mem.eql(u8, cmd, "blame")) return ui_blame.blame(ctx, writer);
+    if (std.mem.eql(u8, cmd, "blob")) return ui_blob.blob(ctx, writer);
+    if (std.mem.eql(u8, cmd, "commit")) return ui_commit.commit(ctx, writer);
+    if (std.mem.eql(u8, cmd, "diff")) return ui_diff.diff(ctx, writer);
+    if (std.mem.eql(u8, cmd, "info")) return ui_clone.info(ctx, writer);
+    if (std.mem.eql(u8, cmd, "log")) return ui_log.log(ctx, writer);
+    if (std.mem.eql(u8, cmd, "ls_cache")) return lsCache(ctx, writer);
+    if (std.mem.eql(u8, cmd, "objects")) return ui_clone.objects(ctx, writer);
+    if (std.mem.eql(u8, cmd, "patch")) return ui_patch.patch(ctx, writer);
+    if (std.mem.eql(u8, cmd, "plain")) return ui_plain.plain(ctx, writer);
+    if (std.mem.eql(u8, cmd, "rawdiff")) return ui_diff.rawdiff(ctx, writer);
+    if (std.mem.eql(u8, cmd, "refs")) return ui_refs.refs(ctx, writer);
+    if (std.mem.eql(u8, cmd, "repolist")) return ui_repolist.repolist(ctx, writer);
+    if (std.mem.eql(u8, cmd, "snapshot")) return ui_snapshot.snapshot(ctx, writer);
+    if (std.mem.eql(u8, cmd, "stats")) return ui_stats.stats(ctx, writer);
+    if (std.mem.eql(u8, cmd, "tag")) return ui_tag.tag(ctx, writer);
+    if (std.mem.eql(u8, cmd, "tree")) return ui_tree.tree(ctx, writer);
+
+    // If still no match, default to repolist or summary
+    if (ctx.repo != null) {
+        return ui_summary.summary(ctx, writer);
+    } else {
+        return ui_repolist.repolist(ctx, writer);
+    }
 }
 
 pub fn wantsRepo(cmd: []const u8) bool {

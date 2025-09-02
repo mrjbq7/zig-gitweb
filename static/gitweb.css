@@ -12,9 +12,9 @@ body {
 a { color: #0969da; text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-#cgit {
-    margin: 0 auto;
-    max-width: 1200px;
+#gitweb {
+    margin: 0;
+    width: 100%;
 }
 
 /* Header */
@@ -22,7 +22,8 @@ a:hover { text-decoration: underline; }
     background: #f6f8fa;
     border-bottom: 1px solid #d1d5da;
     padding: 16px;
-    margin-bottom: 20px;
+    margin-bottom: 0;
+    width: 100%;
 }
 
 #header td.logo {
@@ -52,8 +53,9 @@ a:hover { text-decoration: underline; }
 /* Navigation tabs */
 table.tabs {
     border-bottom: 1px solid #d1d5da;
-    margin-bottom: 20px;
+    margin-bottom: 0;
     width: 100%;
+    background: white;
 }
 
 table.tabs td {
@@ -83,8 +85,32 @@ table.tabs td a.active {
     border-bottom: 1px solid white;
 }
 
+/* Branch selector */
+.branch-selector {
+    padding: 12px 16px;
+    background: #f6f8fa;
+    border-bottom: 1px solid #d1d5da;
+    margin-bottom: 20px;
+}
+
+.branch-selector form {
+    display: inline-block;
+    margin: 0;
+}
+
+.branch-selector label {
+    margin-right: 8px;
+    font-weight: 500;
+}
+
+.branch-selector select {
+    min-width: 150px;
+}
+
 /* Content area */
 div.content {
+    max-width: 1200px;
+    margin: 0 auto;
     padding: 0 16px;
 }
 
@@ -405,11 +431,202 @@ div.stats-graph canvas {
 .hl-type { color: #22863a; }
 .hl-variable { color: #e36209; }
 
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #0d1117;
+        color: #c9d1d9;
+    }
+    
+    a { color: #58a6ff; }
+    
+    #header {
+        background: #161b22;
+        border-bottom-color: #30363d;
+    }
+    
+    #header td.sub {
+        color: #8b949e;
+    }
+    
+    table.tabs {
+        border-bottom-color: #30363d;
+        background: #0d1117;
+    }
+    
+    table.tabs td a {
+        color: #c9d1d9;
+    }
+    
+    table.tabs td a:hover {
+        background: #161b22;
+    }
+    
+    table.tabs td a.active {
+        background: #0d1117;
+        border-color: #30363d;
+        border-bottom-color: #0d1117;
+    }
+    
+    .branch-selector {
+        background: #161b22;
+        border-bottom-color: #30363d;
+    }
+    
+    table.list {
+        border-color: #30363d;
+    }
+    
+    table.list tr {
+        background: #0d1117;
+    }
+    
+    table.list tr:nth-child(even) {
+        background: #161b22;
+    }
+    
+    table.list tr:hover {
+        background: #1c2128;
+    }
+    
+    table.list th {
+        background: #161b22;
+        border-bottom-color: #30363d;
+    }
+    
+    table.list td {
+        border-bottom-color: #21262d;
+    }
+    
+    table.list td.age {
+        color: #8b949e;
+    }
+    
+    div.repolist p {
+        color: #8b949e;
+    }
+    
+    div.summary h3 {
+        border-bottom-color: #21262d;
+    }
+    
+    div.summary div.desc {
+        color: #8b949e;
+    }
+    
+    table.commit-info th {
+        color: #8b949e;
+    }
+    
+    pre.diff, pre.blob {
+        background: #161b22;
+        border-color: #30363d;
+    }
+    
+    .diff .add {
+        background: #1a3a1a;
+        color: #3fb950;
+    }
+    
+    .diff .del {
+        background: #3a1a1a;
+        color: #f85149;
+    }
+    
+    .diff .hunk {
+        background: #161b22;
+        color: #58a6ff;
+    }
+    
+    div.path {
+        background: #161b22;
+        border-color: #30363d;
+    }
+    
+    .linenumbers {
+        color: #8b949e;
+        background: #161b22;
+        border-right-color: #30363d;
+    }
+    
+    table.blame td.commit {
+        background: #161b22;
+        border-right-color: #30363d;
+        color: #58a6ff;
+    }
+    
+    table.blame td.author,
+    table.blame td.date,
+    table.blame td.linenumber {
+        background: #161b22;
+        border-right-color: #30363d;
+        color: #8b949e;
+    }
+    
+    div.footer {
+        border-top-color: #30363d;
+        color: #8b949e;
+    }
+    
+    input[type="text"], input[type="search"], select {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+    
+    input[type="text"]:focus, input[type="search"]:focus, select:focus {
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+    }
+    
+    input[type="submit"], button {
+        background: #238636;
+        border-color: #1b1f23;
+    }
+    
+    input[type="submit"]:hover, button:hover {
+        background: #2ea043;
+    }
+    
+    div.pagination a, div.pagination span {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #58a6ff;
+    }
+    
+    div.pagination span.current {
+        background: #58a6ff;
+        color: #0d1117;
+        border-color: #58a6ff;
+    }
+    
+    div.pagination a:hover {
+        background: #161b22;
+    }
+    
+    div.stats-graph canvas {
+        border-color: #30363d;
+    }
+    
+    .tooltip .tooltiptext {
+        background-color: #1c2128;
+    }
+    
+    /* Syntax highlighting for dark mode */
+    .hl-keyword { color: #ff7b72; }
+    .hl-string { color: #a5d6ff; }
+    .hl-comment { color: #8b949e; }
+    .hl-number { color: #79c0ff; }
+    .hl-function { color: #d2a8ff; }
+    .hl-type { color: #7ee83f; }
+    .hl-variable { color: #ffa657; }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
-    #cgit {
-        margin: 0;
-        width: 100%;
+    div.content {
+        max-width: 100%;
+        padding: 0 12px;
     }
     
     table.list {
@@ -422,5 +639,9 @@ div.stats-graph canvas {
     
     #header td.main {
         font-size: 20px;
+    }
+    
+    .branch-selector {
+        padding: 8px 12px;
     }
 }

@@ -57,16 +57,32 @@ pub fn truncateString(text: []const u8, max_len: usize) []const u8 {
 
 pub fn writeCommitLink(ctx: *gitweb.Context, writer: anytype, oid: []const u8, text: ?[]const u8) !void {
     const display_text = text orelse oid[0..7];
-    try writer.print("<a href='?cmd=commit&id={s}'>", .{oid});
+    if (ctx.repo) |repo| {
+        try writer.print("<a href='?r={s}&cmd=commit&id={s}", .{ repo.name, oid });
+    } else {
+        try writer.print("<a href='?cmd=commit&id={s}", .{oid});
+    }
+
+    // Include branch parameter if present
+    if (ctx.query.get("h")) |branch| {
+        try writer.print("&h={s}", .{branch});
+    }
+
+    try writer.writeAll("'>");
     try html.htmlEscape(writer, display_text);
     try writer.writeAll("</a>");
-    _ = ctx;
 }
 
 pub fn writeTreeLink(ctx: *gitweb.Context, writer: anytype, oid: []const u8, path: ?[]const u8, text: ?[]const u8) !void {
     const display_text = text orelse "tree";
-    try writer.writeAll("<a href='?cmd=tree");
-    try writer.print("&id={s}", .{oid});
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |repo| {
+        try writer.print("r={s}&", .{repo.name});
+    }
+    try writer.print("cmd=tree&id={s}", .{oid});
+    if (ctx.query.get("h")) |branch| {
+        try writer.print("&h={s}", .{branch});
+    }
     if (path) |p| {
         try writer.writeAll("&path=");
         try html.urlEncode(writer, p);
@@ -74,13 +90,18 @@ pub fn writeTreeLink(ctx: *gitweb.Context, writer: anytype, oid: []const u8, pat
     try writer.writeAll("'>");
     try html.htmlEscape(writer, display_text);
     try writer.writeAll("</a>");
-    _ = ctx;
 }
 
 pub fn writeDiffLink(ctx: *gitweb.Context, writer: anytype, old_oid: []const u8, new_oid: []const u8, path: ?[]const u8, text: ?[]const u8) !void {
     const display_text = text orelse "diff";
-    try writer.writeAll("<a href='?cmd=diff");
-    try writer.print("&id={s}&id2={s}", .{ new_oid, old_oid });
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |repo| {
+        try writer.print("r={s}&", .{repo.name});
+    }
+    try writer.print("cmd=diff&id={s}&id2={s}", .{ new_oid, old_oid });
+    if (ctx.query.get("h")) |branch| {
+        try writer.print("&h={s}", .{branch});
+    }
     if (path) |p| {
         try writer.writeAll("&path=");
         try html.urlEncode(writer, p);
@@ -88,7 +109,6 @@ pub fn writeDiffLink(ctx: *gitweb.Context, writer: anytype, old_oid: []const u8,
     try writer.writeAll("'>");
     try html.htmlEscape(writer, display_text);
     try writer.writeAll("</a>");
-    _ = ctx;
 }
 
 pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) !void {
@@ -115,7 +135,15 @@ pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) 
         try accumulated.appendSlice(ctx.allocator, segment);
 
         if (iter.peek() != null) {
-            try writer.print("<a href='?cmd=tree&path={s}'>", .{accumulated.items});
+            try writer.writeAll("<a href='?");
+            if (ctx.repo) |repo| {
+                try writer.print("r={s}&", .{repo.name});
+            }
+            try writer.writeAll("cmd=tree");
+            if (ctx.query.get("h")) |branch| {
+                try writer.print("&h={s}", .{branch});
+            }
+            try writer.print("&path={s}'>", .{accumulated.items});
             try html.htmlEscape(writer, segment);
             try writer.writeAll("</a>");
         } else {

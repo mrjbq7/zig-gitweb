@@ -36,7 +36,21 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     if (std.mem.eql(u8, ref_name, "HEAD")) {
         try walk.pushHead();
     } else {
-        try walk.pushRef(ref_name);
+        // Try as full reference first (refs/heads/branch)
+        const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+        defer ctx.allocator.free(full_ref);
+        walk.pushRef(full_ref) catch {
+            // If that fails, try as tag (refs/tags/tagname)
+            const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, @as(u8, 0));
+            defer ctx.allocator.free(tag_ref);
+            walk.pushRef(tag_ref) catch {
+                // If that also fails, try the name as-is (might be a full ref already)
+                walk.pushRef(ref_name) catch {
+                    // Fall back to HEAD if nothing works
+                    try walk.pushHead();
+                };
+            };
+        };
     }
 
     // Set sorting
@@ -138,11 +152,19 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
 
     if (offset > 0) {
         const prev_offset = if (offset > ctx.cfg.max_commit_count) offset - ctx.cfg.max_commit_count else 0;
-        try writer.print("<a href='?cmd=log&h={s}&ofs={d}'>← Previous</a> ", .{ ref_name, prev_offset });
+        if (ctx.repo) |r| {
+            try writer.print("<a href='?r={s}&cmd=log&h={s}&ofs={d}'>← Previous</a> ", .{ r.name, ref_name, prev_offset });
+        } else {
+            try writer.print("<a href='?cmd=log&h={s}&ofs={d}'>← Previous</a> ", .{ ref_name, prev_offset });
+        }
     }
 
     if (count == ctx.cfg.max_commit_count) {
-        try writer.print("<a href='?cmd=log&h={s}&ofs={d}'>Next →</a>", .{ ref_name, total });
+        if (ctx.repo) |r| {
+            try writer.print("<a href='?r={s}&cmd=log&h={s}&ofs={d}'>Next →</a>", .{ r.name, ref_name, total });
+        } else {
+            try writer.print("<a href='?cmd=log&h={s}&ofs={d}'>Next →</a>", .{ ref_name, total });
+        }
     }
 
     try writer.writeAll("</div>\n");

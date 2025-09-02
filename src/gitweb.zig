@@ -229,7 +229,7 @@ pub const Context = struct {
             .cfg = try initDefaultConfig(allocator),
             .repo = null,
             .page = Page{},
-            .cmd = "summary",
+            .cmd = "",
             .query = Query.init(allocator),
             .env = Environment{},
         };
@@ -240,6 +240,15 @@ pub const Context = struct {
         if (self.repo) |repo| {
             repo.deinit();
         }
+        // Free config allocated strings
+        if (self.cfg.scanpath) |scanpath| {
+            self.allocator.free(scanpath);
+        }
+        if (self.cfg.project_list) |project_list| {
+            self.allocator.free(project_list);
+        }
+        // Free mimetypes map
+        self.cfg.mimetypes.deinit();
     }
 
     pub fn parseRequest(self: *Context, query_string: []const u8, path_info: []const u8, method: []const u8) !void {
@@ -251,13 +260,24 @@ pub const Context = struct {
         // Parse path info to determine repo and command
         try self.parsePath(path_info);
 
+        // Get command from query string if present
+        if (self.query.get("cmd")) |cmd| {
+            self.cmd = cmd;
+        }
+
         // Load repository if specified
         if (self.query.get("r")) |repo_name| {
+            // std.debug.print("parseRequest: Loading repository '{s}'\n", .{repo_name});
             try self.loadRepository(repo_name);
+            // std.debug.print("parseRequest: After loadRepository, ctx.repo = {?}\n", .{self.repo});
+        } else {
+            // std.debug.print("parseRequest: No 'r' parameter in query string\n", .{});
         }
     }
 
     fn loadRepository(self: *Context, repo_name: []const u8) !void {
+        // std.debug.print("loadRepository: looking for repo '{s}'\n", .{repo_name});
+
         // First, try to find the repository in our configuration
         // TODO: Check if repository is already configured in a repo list
 
@@ -272,6 +292,7 @@ pub const Context = struct {
         var repo_path: []const u8 = undefined;
 
         if (self.cfg.scanpath) |scan_path| {
+            // std.debug.print("Using scan-path: {s}\n", .{scan_path});
             // Look for repository under scan-path
             // Try both with and without .git extension
             const path_with_git = try std.fmt.allocPrint(self.allocator, "{s}/{s}.git", .{ scan_path, repo_name });
@@ -280,42 +301,60 @@ pub const Context = struct {
             const path_without_git = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ scan_path, repo_name });
             defer self.allocator.free(path_without_git);
 
+            // std.debug.print("Checking path: {s}\n", .{path_with_git});
+            // std.debug.print("Checking path: {s}\n", .{path_without_git});
+
             // Check which path exists
             if (std.fs.accessAbsolute(path_with_git, .{})) |_| {
+                // std.debug.print("Found repository at: {s}\n", .{path_with_git});
                 repo_path = try self.allocator.dupe(u8, path_with_git);
             } else |_| {
                 if (std.fs.accessAbsolute(path_without_git, .{})) |_| {
+                    // std.debug.print("Found repository at: {s}\n", .{path_without_git});
                     repo_path = try self.allocator.dupe(u8, path_without_git);
                 } else |_| {
+                    // std.debug.print("Repository not found under scan-path\n", .{});
                     // Repository not found under scan-path
                     return error.RepositoryNotFound;
                 }
             }
         } else {
+            // std.debug.print("No scan-path configured, using default\n", .{});
             // No scan-path configured, fall back to default
             // This maintains backward compatibility
             const home = std.process.getEnvVarOwned(self.allocator, "HOME") catch "/home";
             defer self.allocator.free(home);
 
             repo_path = try std.fmt.allocPrint(self.allocator, "{s}/git/{s}.git", .{ home, repo_name });
+            // std.debug.print("Using default path: {s}\n", .{repo_path});
         }
 
         self.repo.?.path = repo_path;
+        // std.debug.print("Repository path set to: {s}\n", .{repo_path});
 
         // Set some defaults
         self.repo.?.desc = try self.allocator.dupe(u8, "");
     }
 
     fn parseQueryString(self: *Context, query_string: []const u8) !void {
+        // std.debug.print("parseQueryString: input = '{s}'\n", .{query_string});
         var iter = std.mem.tokenizeAny(u8, query_string, "&");
         while (iter.next()) |param| {
             const eq_pos = std.mem.indexOf(u8, param, "=");
             if (eq_pos) |pos| {
                 const key = param[0..pos];
                 const value = param[pos + 1 ..];
+                // std.debug.print("parseQueryString: setting key='{s}', value='{s}'\n", .{key, value});
                 try self.query.set(key, value);
             }
         }
+
+        // Debug: Check what's in the query
+        // if (self.query.get("r")) |r_value| {
+        //     std.debug.print("parseQueryString: query has 'r' = '{s}'\n", .{r_value});
+        // } else {
+        //     std.debug.print("parseQueryString: query does not have 'r' parameter\n", .{});
+        // }
     }
 
     fn parsePath(self: *Context, path_info: []const u8) !void {
@@ -341,7 +380,7 @@ fn initDefaultConfig(allocator: std.mem.Allocator) !Config {
     return Config{
         .agefile = null,
         .cache_root = "/var/cache/cgit",
-        .cache_enabled = true,
+        .cache_enabled = false,
         .cache_size = 0,
         .cache_dynamic_ttl = 5,
         .cache_max_create_time = 5,
@@ -375,7 +414,7 @@ fn initDefaultConfig(allocator: std.mem.Allocator) !Config {
         .head_include = null,
         .header = null,
         .logo = "/gitweb.png",
-        .logo_link = "https://github.com/yourusername/zig-gitweb",
+        .logo_link = "https://github.com/mrjbq7/zig-gitweb",
         .max_atom_items = 10,
         .max_commit_count = 50,
         .max_lock_attempts = 5,

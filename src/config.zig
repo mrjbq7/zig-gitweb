@@ -2,27 +2,64 @@ const std = @import("std");
 const gitweb = @import("gitweb.zig");
 
 pub fn loadConfig(ctx: *gitweb.Context) !void {
-    // Check GITWEB_CONFIG environment variable or use default location
+    // Check GITWEB_CONFIG environment variable, then binary directory, then cwd, then default location
     const config_file = std.process.getEnvVarOwned(ctx.allocator, "GITWEB_CONFIG") catch |err| blk: {
         if (err == error.EnvironmentVariableNotFound) {
-            // Fall back to default location
-            break :blk try ctx.allocator.dupe(u8, "/etc/gitweb.conf");
+            // Try to get the binary's directory
+            const exe_path = try std.fs.selfExePathAlloc(ctx.allocator);
+            defer ctx.allocator.free(exe_path);
+
+            const exe_dir = std.fs.path.dirname(exe_path) orelse ".";
+            const binary_conf = try std.fs.path.join(ctx.allocator, &.{ exe_dir, "gitweb.conf" });
+            defer ctx.allocator.free(binary_conf);
+
+            // Debug output to stderr (commented out for production)
+            // std.debug.print("Checking for config at: {s}\n", .{binary_conf});
+
+            // Try binary directory first
+            if (std.fs.openFileAbsolute(binary_conf, .{})) |f| {
+                f.close();
+                // std.debug.print("Found config in binary directory: {s}\n", .{binary_conf});
+                break :blk try ctx.allocator.dupe(u8, binary_conf);
+            } else |_| {
+                // Try current working directory
+                // std.debug.print("Checking for config at: gitweb.conf (cwd)\n", .{});
+                if (std.fs.cwd().access("gitweb.conf", .{})) |_| {
+                    // std.debug.print("Found config in current directory\n", .{});
+                    break :blk try ctx.allocator.dupe(u8, "gitweb.conf");
+                } else |_| {
+                    // Fall back to default location
+                    // std.debug.print("Checking for config at: /etc/gitweb.conf\n", .{});
+                    break :blk try ctx.allocator.dupe(u8, "/etc/gitweb.conf");
+                }
+            }
         }
         return err;
     };
     defer ctx.allocator.free(config_file);
 
+    // std.debug.print("Attempting to load config from: {s}\n", .{config_file});
+
     // Try to open and parse config file
-    const file = std.fs.openFileAbsolute(config_file, .{}) catch |err| {
+    const file = if (std.fs.path.isAbsolute(config_file))
+        std.fs.openFileAbsolute(config_file, .{})
+    else
+        std.fs.cwd().openFile(config_file, .{});
+
+    const opened_file = file catch |err| {
         if (err == error.FileNotFound) {
             // Config file is optional, use defaults
+            // std.debug.print("Config file not found at {s}, using defaults\n", .{config_file});
             return;
         }
+        // std.debug.print("Error opening config file: {}\n", .{err});
         return err;
     };
-    defer file.close();
+    defer opened_file.close();
 
-    const content = try file.readToEndAlloc(ctx.allocator, std.math.maxInt(usize));
+    // std.debug.print("Successfully opened config file: {s}\n", .{config_file});
+
+    const content = try opened_file.readToEndAlloc(ctx.allocator, std.math.maxInt(usize));
     defer ctx.allocator.free(content);
 
     try parseConfig(ctx, content);
@@ -66,97 +103,19 @@ fn parseConfig(ctx: *gitweb.Context, content: []const u8) !void {
 }
 
 fn setGlobalConfig(ctx: *gitweb.Context, key: []const u8, value: []const u8) !void {
-    if (std.mem.eql(u8, key, "cache-root")) {
-        ctx.cfg.cache_root = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "cache-size")) {
-        ctx.cfg.cache_size = try std.fmt.parseInt(usize, value, 10);
-    } else if (std.mem.eql(u8, key, "cache-dynamic-ttl")) {
-        ctx.cfg.cache_dynamic_ttl = try std.fmt.parseInt(i32, value, 10);
-    } else if (std.mem.eql(u8, key, "cache-repo-ttl")) {
-        ctx.cfg.cache_repo_ttl = try std.fmt.parseInt(i32, value, 10);
-    } else if (std.mem.eql(u8, key, "cache-root-ttl")) {
-        ctx.cfg.cache_root_ttl = try std.fmt.parseInt(i32, value, 10);
-    } else if (std.mem.eql(u8, key, "clone-prefix")) {
-        ctx.cfg.clone_prefix = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "clone-url")) {
-        ctx.cfg.clone_url = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "css")) {
-        ctx.cfg.css = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "embedded")) {
-        ctx.cfg.embedded = std.mem.eql(u8, value, "1");
-    } else if (std.mem.eql(u8, key, "enable-index-links")) {
-        ctx.cfg.enable_index_links = std.mem.eql(u8, value, "1");
-    } else if (std.mem.eql(u8, key, "enable-index-owner")) {
-        ctx.cfg.enable_index_owner = std.mem.eql(u8, value, "1");
-    } else if (std.mem.eql(u8, key, "enable-commit-graph")) {
-        ctx.cfg.enable_commit_graph = std.mem.eql(u8, value, "1");
-    } else if (std.mem.eql(u8, key, "enable-log-filecount")) {
-        ctx.cfg.enable_log_filecount = std.mem.eql(u8, value, "1");
-    } else if (std.mem.eql(u8, key, "enable-log-linecount")) {
-        ctx.cfg.enable_log_linecount = std.mem.eql(u8, value, "1");
-    } else if (std.mem.eql(u8, key, "favicon")) {
-        ctx.cfg.favicon = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "footer")) {
-        ctx.cfg.footer = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "head-include")) {
-        ctx.cfg.head_include = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "header")) {
-        ctx.cfg.header = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "logo")) {
-        ctx.cfg.logo = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "logo-link")) {
-        ctx.cfg.logo_link = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "max-atom-items")) {
-        ctx.cfg.max_atom_items = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "max-commit-count")) {
-        ctx.cfg.max_commit_count = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "max-message-length")) {
-        ctx.cfg.max_msg_len = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "max-repo-count")) {
-        ctx.cfg.max_repo_count = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "max-repodesc-length")) {
-        ctx.cfg.max_repodesc_len = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "max-blob-size")) {
-        ctx.cfg.max_blob_size = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "max-stats")) {
-        ctx.cfg.max_stats = parseStatsPeriod(value);
-    } else if (std.mem.eql(u8, key, "mimetype-file")) {
-        ctx.cfg.mimetype_file = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "module-link")) {
-        ctx.cfg.module_link = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "nocache")) {
-        ctx.cfg.nocache = std.mem.eql(u8, value, "1");
-    } else if (std.mem.eql(u8, key, "noheader")) {
-        ctx.cfg.noheader = std.mem.eql(u8, value, "1");
-    } else if (std.mem.eql(u8, key, "project-list")) {
-        ctx.cfg.project_list = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "readme")) {
-        ctx.cfg.readme = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "robots")) {
-        ctx.cfg.robots = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "root-title")) {
-        ctx.cfg.root_title = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "root-desc")) {
-        ctx.cfg.root_desc = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "root-readme")) {
-        ctx.cfg.root_readme = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "scan-path")) {
+    if (std.mem.eql(u8, key, "scan-path")) {
+        // Free old value if it exists
+        if (ctx.cfg.scanpath) |old| {
+            ctx.allocator.free(old);
+        }
         ctx.cfg.scanpath = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "section")) {
-        ctx.cfg.section = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.eql(u8, key, "snapshots")) {
-        ctx.cfg.snapshots = try parseSnapshotFormats(value);
-    } else if (std.mem.eql(u8, key, "summary-branches")) {
-        ctx.cfg.summary_branches = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "summary-log")) {
-        ctx.cfg.summary_log = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "summary-tags")) {
-        ctx.cfg.summary_tags = try std.fmt.parseInt(u32, value, 10);
-    } else if (std.mem.eql(u8, key, "virtual-root")) {
-        ctx.cfg.virtual_root = try ctx.allocator.dupe(u8, value);
-    } else if (std.mem.startsWith(u8, key, "mimetype.")) {
-        const ext = key[9..];
-        try ctx.cfg.mimetypes.put(try ctx.allocator.dupe(u8, ext), try ctx.allocator.dupe(u8, value));
+        // std.debug.print("Set scan-path to: {s}\n", .{value});
+    } else if (std.mem.eql(u8, key, "project-list")) {
+        // Free old value if it exists
+        if (ctx.cfg.project_list) |old| {
+            ctx.allocator.free(old);
+        }
+        ctx.cfg.project_list = try ctx.allocator.dupe(u8, value);
     }
 }
 

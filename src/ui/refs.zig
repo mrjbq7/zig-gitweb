@@ -72,7 +72,11 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
         if (branch_type == c.GIT_BRANCH_REMOTE) {
             try writer.writeAll("<span style='color: #666'>remote/</span>");
         }
-        try writer.print("<a href='?cmd=log&h={s}'>{s}</a>", .{ std.mem.span(branch_name), std.mem.span(branch_name) });
+        if (ctx.repo) |r| {
+            try writer.print("<a href='?r={s}&cmd=log&h={s}'>{s}</a>", .{ r.name, std.mem.span(branch_name), std.mem.span(branch_name) });
+        } else {
+            try writer.print("<a href='?cmd=log&h={s}'>{s}</a>", .{ std.mem.span(branch_name), std.mem.span(branch_name) });
+        }
 
         // Show if this is the current branch
         if (branch_type == c.GIT_BRANCH_LOCAL) {

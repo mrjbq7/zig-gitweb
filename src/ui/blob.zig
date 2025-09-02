@@ -26,23 +26,39 @@ pub fn blob(ctx: *gitweb.Context, writer: anytype) !void {
     };
     defer git_repo.close();
 
-    // Get the reference
-    const ref_name = ctx.query.get("h") orelse "HEAD";
-    var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch {
-        try writer.writeAll("<p>Unable to find reference.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
-    defer ref.free();
+    // Get the commit - try id first, then h, then default to HEAD
+    var commit = blk: {
+        if (ctx.query.get("id")) |id_str| {
+            // Try to parse as OID
+            var oid: git.c.git_oid = undefined;
+            if (git.c.git_oid_fromstr(&oid, id_str.ptr) == 0) {
+                break :blk try git_repo.lookupCommit(&oid);
+            }
+        }
 
-    // Get the commit
-    const target = ref.target() orelse {
-        try writer.writeAll("<p>Invalid reference target.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
+        // Try branch/ref name
+        const ref_name = ctx.query.get("h") orelse "HEAD";
 
-    var commit = try git_repo.lookupCommit(target);
+        // Get the reference
+        var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch {
+            try writer.writeAll("<p>Unable to find reference.</p>\n");
+            try writer.writeAll("</div>\n");
+            return;
+        };
+        defer ref.free();
+
+        // Resolve the reference to a commit
+        var commit_obj = ref.peel(git.c.GIT_OBJECT_COMMIT) catch {
+            try writer.writeAll("<p>Unable to resolve reference to commit.</p>\n");
+            try writer.writeAll("</div>\n");
+            return;
+        };
+        defer commit_obj.free();
+
+        // Cast the object to a commit
+        const commit_ptr = @as(*git.c.git_commit, @ptrCast(commit_obj.obj));
+        break :blk git.Commit{ .commit = commit_ptr };
+    };
     defer commit.free();
 
     // Get the tree
@@ -132,10 +148,13 @@ pub fn blob(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, writer: anytype) !void {
-    _ = ctx;
 
     // Add download/raw link
-    try writer.print("<div class='blob-actions'><a href='?cmd=plain&path={s}'>View Raw</a></div>\n", .{path});
+    try writer.writeAll("<div class='blob-actions'><a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.print("cmd=plain&path={s}'>View Raw</a></div>\n", .{path});
 
     // Check if content is too large
     if (content.len > 1024 * 1024) { // 1MB limit for syntax highlighting
@@ -172,19 +191,25 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
 }
 
 fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, size: u64, writer: anytype) !void {
-    _ = ctx;
-
     const mime_type = sharedUtils.getMimeType(path);
 
     try writer.writeAll("<div class='binary-file'>\n");
 
     if (std.mem.startsWith(u8, mime_type, "image/")) {
         // Display image
-        try writer.print("<img src='?cmd=plain&path={s}' alt='{s}' style='max-width: 100%;' />\n", .{ path, std.fs.path.basename(path) });
+        try writer.writeAll("<img src='?");
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
+        }
+        try writer.print("cmd=plain&path={s}' alt='{s}' style='max-width: 100%;' />\n", .{ path, std.fs.path.basename(path) });
     } else {
         // Show download link
         try writer.writeAll("<p>Binary file cannot be displayed.</p>\n");
-        try writer.print("<a href='?cmd=plain&path={s}' download>Download ({s}, ", .{ path, mime_type });
+        try writer.writeAll("<a href='?");
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
+        }
+        try writer.print("cmd=plain&path={s}' download>Download ({s}, ", .{ path, mime_type });
         try parsing.formatFileSize(size, writer);
         try writer.writeAll(")</a>\n");
     }
