@@ -52,37 +52,40 @@ a:hover { text-decoration: underline; }
 
 /* Navigation tabs */
 table.tabs {
-    border-bottom: 1px solid #d1d5da;
-    margin-bottom: 0;
     width: 100%;
-    background: white;
+    background: linear-gradient(to bottom, white 0%, white calc(100% - 1px), #d1d5da calc(100% - 1px), #d1d5da 100%);
+    border-spacing: 0;
+    padding: 0;
+    margin: 12px 0 0 0;
 }
 
 table.tabs td {
     padding: 0;
+    vertical-align: bottom;
 }
 
 table.tabs td a {
     display: inline-block;
-    padding: 8px 16px;
-    margin-right: 4px;
+    padding: 6px 14px 7px 14px;
+    margin-right: 2px;
     border: 1px solid transparent;
-    border-bottom: 0;
-    position: relative;
-    top: 1px;
     background: transparent;
     color: #24292f;
+    text-decoration: none;
 }
 
 table.tabs td a:hover {
     text-decoration: none;
     background: #f6f8fa;
+    border-color: #d1d5da;
+    border-bottom-color: #d1d5da;
 }
 
 table.tabs td a.active {
     background: white;
     border: 1px solid #d1d5da;
-    border-bottom: 1px solid white;
+    border-bottom-color: white;
+    font-weight: 600;
 }
 
 /* Branch selector */
@@ -597,12 +600,14 @@ table.search-results code {
     
     table.tabs td a:hover {
         background: #161b22;
+        border-color: #30363d;
+        border-bottom: none;
     }
     
     table.tabs td a.active {
         background: #0d1117;
         border-color: #30363d;
-        border-bottom-color: #0d1117;
+        border-bottom: 1px solid #0d1117;
     }
     
     .branch-selector {

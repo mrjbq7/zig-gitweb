@@ -75,9 +75,9 @@ fn renderSearchForm(ctx: *gitweb.Context, writer: anytype) !void {
 
     // Search type selector
     try writer.writeAll("<select name='type'>\n");
-    try writeSearchOption(writer, "commit", "Commit messages", search_type);
-    try writeSearchOption(writer, "author", "Author names", search_type);
-    try writeSearchOption(writer, "grep", "File contents", search_type);
+    try writeSearchOption(writer, "commit", "Commits", search_type);
+    try writeSearchOption(writer, "author", "Authors", search_type);
+    try writeSearchOption(writer, "grep", "Files", search_type);
     try writer.writeAll("</select>\n");
 
     try writer.writeAll("<input type='submit' value='Search' />\n");
@@ -94,7 +94,7 @@ fn writeSearchOption(writer: anytype, value: []const u8, label: []const u8, curr
 }
 
 fn searchCommits(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const u8, writer: anytype) !void {
-    try writer.writeAll("<h3>Commit Messages</h3>\n");
+    try writer.writeAll("<h3>Commits</h3>\n");
 
     var walk = try repo.revwalk();
     defer walk.free();
@@ -181,14 +181,52 @@ fn searchCommitsFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git
 }
 
 fn searchAuthor(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const u8, writer: anytype) !void {
-    try writer.writeAll("<h3>Author Names</h3>\n");
+    try writer.writeAll("<h3>Authors</h3>\n");
 
     var walk = try repo.revwalk();
     defer walk.free();
 
-    try walk.pushHead();
-    walk.setSorting(c.GIT_SORT_TIME);
+    // Handle branch filtering like commit search
+    const ref_name = ctx.query.get("h") orelse "HEAD";
+    if (std.mem.eql(u8, ref_name, "HEAD")) {
+        try walk.pushHead();
+    } else {
+        // Try to get the reference
+        var ref = repo.getReference(ref_name) catch {
+            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+            defer ctx.allocator.free(full_ref);
 
+            var ref2 = repo.getReference(full_ref) catch {
+                try walk.pushHead();
+                walk.setSorting(c.GIT_SORT_TIME);
+                return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
+            };
+            defer ref2.free();
+
+            const oid = ref2.target() orelse {
+                try walk.pushHead();
+                walk.setSorting(c.GIT_SORT_TIME);
+                return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
+            };
+            _ = c.git_revwalk_push(walk.walk, oid);
+            walk.setSorting(c.GIT_SORT_TIME);
+            return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
+        };
+        defer ref.free();
+
+        const oid = ref.target() orelse {
+            try walk.pushHead();
+            walk.setSorting(c.GIT_SORT_TIME);
+            return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
+        };
+        _ = c.git_revwalk_push(walk.walk, oid);
+    }
+
+    walk.setSorting(c.GIT_SORT_TIME);
+    return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
+}
+
+fn searchAuthorFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git.RevWalk, search_term: []const u8, writer: anytype) !void {
     var found_count: usize = 0;
     const max_results = 100;
 
@@ -206,11 +244,19 @@ fn searchAuthor(ctx: *gitweb.Context, repo: *git.Repository, search_term: []cons
 
         const author_sig = commit.author();
         const author_name = std.mem.span(author_sig.name);
+        const author_email = if (author_sig.email) |email| std.mem.span(email) else "";
 
-        const author_lower = try std.ascii.allocLowerString(ctx.allocator, author_name);
-        defer ctx.allocator.free(author_lower);
+        const author_name_lower = try std.ascii.allocLowerString(ctx.allocator, author_name);
+        defer ctx.allocator.free(author_name_lower);
 
-        if (std.mem.indexOf(u8, author_lower, search_lower) != null) {
+        const author_email_lower = try std.ascii.allocLowerString(ctx.allocator, author_email);
+        defer ctx.allocator.free(author_email_lower);
+
+        // Check if search term matches either name or email
+        const name_match = std.mem.indexOf(u8, author_name_lower, search_lower) != null;
+        const email_match = std.mem.indexOf(u8, author_email_lower, search_lower) != null;
+
+        if (name_match or email_match) {
             const message = commit.message();
             try renderSearchResult(ctx, &commit, &oid, message, writer);
             found_count += 1;
@@ -229,7 +275,7 @@ fn searchAuthor(ctx: *gitweb.Context, repo: *git.Repository, search_term: []cons
 }
 
 fn searchGrep(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const u8, writer: anytype) !void {
-    try writer.writeAll("<h3>File Contents</h3>\n");
+    try writer.writeAll("<h3>Files</h3>\n");
 
     // Get commit based on branch parameter
     const ref_name = ctx.query.get("h") orelse "HEAD";

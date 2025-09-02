@@ -19,12 +19,60 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     };
     defer git_repo.close();
 
-    // Get the two commit IDs
-    const id1 = ctx.query.get("id") orelse ctx.query.get("h") orelse "HEAD";
+    // Get the first commit - either from ID or from branch/HEAD
+    const commit1_oid = if (ctx.query.get("id")) |commit_id| blk: {
+        // Parse commit ID
+        break :blk try git.stringToOid(commit_id);
+    } else blk: {
+        // No ID specified, get latest commit from branch or HEAD
+        const ref_name = ctx.query.get("h") orelse "HEAD";
+        
+        if (std.mem.eql(u8, ref_name, "HEAD")) {
+            var head_ref = try git_repo.getHead();
+            defer head_ref.free();
+            
+            const head_oid = head_ref.target() orelse {
+                try writer.writeAll("<p>Unable to get HEAD commit.</p>\n");
+                try writer.writeAll("</div>\n");
+                return;
+            };
+            break :blk head_oid.*;
+        } else {
+            // Try to get the reference
+            var ref = git_repo.getReference(ref_name) catch {
+                // Try with refs/heads/ prefix
+                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+                defer ctx.allocator.free(full_ref);
+                
+                var ref2 = git_repo.getReference(full_ref) catch {
+                    try writer.writeAll("<p>Unable to find branch reference.</p>\n");
+                    try writer.writeAll("</div>\n");
+                    return;
+                };
+                defer ref2.free();
+                
+                const oid = ref2.target() orelse {
+                    try writer.writeAll("<p>Unable to get branch commit.</p>\n");
+                    try writer.writeAll("</div>\n");
+                    return;
+                };
+                break :blk oid.*;
+            };
+            defer ref.free();
+            
+            const oid = ref.target() orelse {
+                try writer.writeAll("<p>Unable to get branch commit.</p>\n");
+                try writer.writeAll("</div>\n");
+                return;
+            };
+            break :blk oid.*;
+        }
+    };
+    
+    // Get the second commit ID (parent if not specified)
     const id2 = ctx.query.get("id2") orelse blk: {
         // If id2 not specified, diff against parent
-        const oid = try git.stringToOid(id1);
-        var commit = try git_repo.lookupCommit(&oid);
+        var commit = try git_repo.lookupCommit(&commit1_oid);
         defer commit.free();
 
         if (commit.parentCount() > 0) {
@@ -48,12 +96,11 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     const context_lines_str = ctx.query.get("context") orelse "3";
     const context_lines = std.fmt.parseInt(u32, context_lines_str, 10) catch 3;
 
-    // Parse commit IDs
-    const oid1 = try git.stringToOid(id1);
+    // Parse second commit ID
     const oid2 = try git.stringToOid(id2);
 
     // Get the commits
-    var commit1 = try git_repo.lookupCommit(&oid1);
+    var commit1 = try git_repo.lookupCommit(&commit1_oid);
     defer commit1.free();
 
     var commit2 = try git_repo.lookupCommit(&oid2);
@@ -88,7 +135,7 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     defer diff_obj.free();
 
     // Display diff header
-    const oid1_str = try git.oidToString(&oid1);
+    const oid1_str = try git.oidToString(&commit1_oid);
     const oid2_str = try git.oidToString(&oid2);
 
     try writer.writeAll("<div class='diff-header'>\n");
@@ -126,19 +173,19 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     if (std.mem.eql(u8, diff_type, "unified")) {
         try writer.writeAll("<strong>Unified</strong> | ");
     } else {
-        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=unified'>Unified</a> | ", .{ id1, id2 });
+        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=unified'>Unified</a> | ", .{ oid1_str, oid2_str });
     }
 
     if (std.mem.eql(u8, diff_type, "ssdiff")) {
         try writer.writeAll("<strong>Side-by-side</strong> | ");
     } else {
-        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=ssdiff'>Side-by-side</a> | ", .{ id1, id2 });
+        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=ssdiff'>Side-by-side</a> | ", .{ oid1_str, oid2_str });
     }
 
     if (std.mem.eql(u8, diff_type, "stat")) {
         try writer.writeAll("<strong>Stat only</strong>");
     } else {
-        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=stat'>Stat only</a>", .{ id1, id2 });
+        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=stat'>Stat only</a>", .{ oid1_str, oid2_str });
     }
 
     try writer.writeAll("</div>\n");
@@ -279,16 +326,47 @@ pub fn rawdiff(ctx: *gitweb.Context, writer: anytype) !void {
     };
     defer git_repo.close();
 
-    // Get the two commit IDs
-    const id1 = ctx.query.get("id") orelse "HEAD";
+    // Get the first commit - either from ID or from branch/HEAD
+    const commit1_oid = if (ctx.query.get("id")) |commit_id| blk: {
+        // Parse commit ID
+        break :blk try git.stringToOid(commit_id);
+    } else blk: {
+        // No ID specified, get latest commit from branch or HEAD
+        const ref_name = ctx.query.get("h") orelse "HEAD";
+        
+        if (std.mem.eql(u8, ref_name, "HEAD")) {
+            var head_ref = try git_repo.getHead();
+            defer head_ref.free();
+            
+            const head_oid = head_ref.target() orelse return error.NoCommit;
+            break :blk head_oid.*;
+        } else {
+            // Try to get the reference
+            var ref = git_repo.getReference(ref_name) catch {
+                // Try with refs/heads/ prefix
+                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+                defer ctx.allocator.free(full_ref);
+                
+                var ref2 = git_repo.getReference(full_ref) catch {
+                    return error.BranchNotFound;
+                };
+                defer ref2.free();
+                
+                const oid = ref2.target() orelse return error.NoCommit;
+                break :blk oid.*;
+            };
+            defer ref.free();
+            
+            const oid = ref.target() orelse return error.NoCommit;
+            break :blk oid.*;
+        }
+    };
+    
     const id2 = ctx.query.get("id2") orelse return error.NoSecondCommit;
-
-    // Parse commit IDs
-    const oid1 = try git.stringToOid(id1);
     const oid2 = try git.stringToOid(id2);
 
     // Get the commits
-    var commit1 = try git_repo.lookupCommit(&oid1);
+    var commit1 = try git_repo.lookupCommit(&commit1_oid);
     defer commit1.free();
 
     var commit2 = try git_repo.lookupCommit(&oid2);

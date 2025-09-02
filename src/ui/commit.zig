@@ -9,7 +9,6 @@ const c = git.c;
 
 pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
-    const commit_id = ctx.query.get("id") orelse return error.NoCommitId;
 
     try writer.writeAll("<div class='commit'>\n");
 
@@ -20,11 +19,44 @@ pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
     };
     defer git_repo.close();
 
-    // Parse commit ID
-    const oid = try git.stringToOid(commit_id);
+    // Get the commit - either from ID or from branch/HEAD
+    var commit_obj = if (ctx.query.get("id")) |commit_id| blk: {
+        // Parse commit ID
+        const oid = try git.stringToOid(commit_id);
+        break :blk try git_repo.lookupCommit(&oid);
+    } else blk: {
+        // No ID specified, get latest commit from branch or HEAD
+        const ref_name = ctx.query.get("h") orelse "HEAD";
 
-    // Get the commit
-    var commit_obj = try git_repo.lookupCommit(&oid);
+        if (std.mem.eql(u8, ref_name, "HEAD")) {
+            var head_ref = try git_repo.getHead();
+            defer head_ref.free();
+
+            const head_oid = head_ref.target() orelse return error.NoCommit;
+            break :blk try git_repo.lookupCommit(head_oid);
+        } else {
+            // Try to get the reference
+            var ref = git_repo.getReference(ref_name) catch {
+                // Try with refs/heads/ prefix
+                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+                defer ctx.allocator.free(full_ref);
+
+                var ref2 = git_repo.getReference(full_ref) catch {
+                    try writer.writeAll("<p>Unable to find branch reference.</p>\n");
+                    try writer.writeAll("</div>\n");
+                    return;
+                };
+                defer ref2.free();
+
+                const oid = ref2.target() orelse return error.NoCommit;
+                break :blk try git_repo.lookupCommit(oid);
+            };
+            defer ref.free();
+
+            const oid = ref.target() orelse return error.NoCommit;
+            break :blk try git_repo.lookupCommit(oid);
+        }
+    };
     defer commit_obj.free();
 
     const oid_str = try git.oidToString(commit_obj.id());
