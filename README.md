@@ -38,7 +38,7 @@ sudo apt-get install libgit2-dev zlib1g-dev
 ### Build from Source
 
 ```bash
-git clone https://github.com/yourusername/zig-gitweb.git
+git clone https://github.com/mrjbq7/zig-gitweb.git
 cd zig-gitweb
 zig build
 ```

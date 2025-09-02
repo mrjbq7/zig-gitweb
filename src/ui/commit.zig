@@ -106,7 +106,8 @@ pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
     const tree_oid_str = try git.oidToString(tree.id());
 
     try writer.writeAll("<tr><th>Tree</th><td>");
-    try shared.writeTreeLink(ctx, writer, &tree_oid_str, null, tree_oid_str[0..7]);
+    // Pass the commit ID, not the tree ID, since tree view expects a commit
+    try shared.writeTreeLink(ctx, writer, &oid_str, null, tree_oid_str[0..7]);
     try writer.writeAll("</td></tr>\n");
 
     try writer.writeAll("</table>\n");

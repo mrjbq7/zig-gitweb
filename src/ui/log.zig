@@ -15,6 +15,28 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     try writer.writeAll("<div class='log'>\n");
     try writer.writeAll("<h2>Commit Log</h2>\n");
 
+    // Add expand/collapse toggle
+    const showmsg = ctx.query.get("showmsg");
+    const expanded = showmsg != null and std.mem.eql(u8, showmsg.?, "1");
+
+    try writer.writeAll("<div class='log-controls'>\n");
+    if (ctx.repo) |r| {
+        if (expanded) {
+            try writer.print("<a href='?r={s}&cmd=log", .{r.name});
+            if (ctx.query.get("h")) |h| {
+                try writer.print("&h={s}", .{h});
+            }
+            try writer.writeAll("'>Collapse</a>\n");
+        } else {
+            try writer.print("<a href='?r={s}&cmd=log&showmsg=1", .{r.name});
+            if (ctx.query.get("h")) |h| {
+                try writer.print("&h={s}", .{h});
+            }
+            try writer.writeAll("'>Expand</a>\n");
+        }
+    }
+    try writer.writeAll("</div>\n");
+
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
         try writer.writeAll("</div>\n");
@@ -129,17 +151,26 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
             }
 
             if (ctx.cfg.enable_log_linecount) {
-                try writer.writeAll("<td>");
-                try writer.print("<span style='color: green'>+{d}</span> ", .{stats.insertions});
-                try writer.print("<span style='color: red'>-{d}</span>", .{stats.deletions});
+                try writer.writeAll("<td class='log-stats'>");
+                try writer.print("<span class='insertions'>+{d}</span> ", .{stats.insertions});
+                try writer.print("<span class='deletions'>-{d}</span>", .{stats.deletions});
                 try writer.writeAll("</td>");
             }
         }
 
         // Message
         try writer.writeAll("<td>");
-        const truncated = parsing.truncateString(summary, @intCast(ctx.cfg.max_msg_len));
-        try html.htmlEscape(writer, truncated);
+        if (expanded) {
+            // Show full commit message with preserved formatting
+            try writer.writeAll("<pre class='commit-msg'>");
+            const full_message = commit.message();
+            try html.htmlEscape(writer, full_message);
+            try writer.writeAll("</pre>");
+        } else {
+            // Show only summary line
+            const truncated = parsing.truncateString(summary, @intCast(ctx.cfg.max_msg_len));
+            try html.htmlEscape(writer, truncated);
+        }
         try writer.writeAll("</td>");
 
         try writer.writeAll("</tr>\n");
@@ -153,18 +184,26 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     if (offset > 0) {
         const prev_offset = if (offset > ctx.cfg.max_commit_count) offset - ctx.cfg.max_commit_count else 0;
         if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=log&h={s}&ofs={d}'>← Previous</a> ", .{ r.name, ref_name, prev_offset });
+            try writer.print("<a href='?r={s}&cmd=log&h={s}&ofs={d}", .{ r.name, ref_name, prev_offset });
         } else {
-            try writer.print("<a href='?cmd=log&h={s}&ofs={d}'>← Previous</a> ", .{ ref_name, prev_offset });
+            try writer.print("<a href='?cmd=log&h={s}&ofs={d}", .{ ref_name, prev_offset });
         }
+        if (expanded) {
+            try writer.writeAll("&showmsg=1");
+        }
+        try writer.writeAll("'>← Previous</a> ");
     }
 
     if (count == ctx.cfg.max_commit_count) {
         if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=log&h={s}&ofs={d}'>Next →</a>", .{ r.name, ref_name, total });
+            try writer.print("<a href='?r={s}&cmd=log&h={s}&ofs={d}", .{ r.name, ref_name, total });
         } else {
-            try writer.print("<a href='?cmd=log&h={s}&ofs={d}'>Next →</a>", .{ ref_name, total });
+            try writer.print("<a href='?cmd=log&h={s}&ofs={d}", .{ ref_name, total });
         }
+        if (expanded) {
+            try writer.writeAll("&showmsg=1");
+        }
+        try writer.writeAll("'>Next →</a>");
     }
 
     try writer.writeAll("</div>\n");

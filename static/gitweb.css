@@ -319,6 +319,43 @@ div.log h2 {
     margin-bottom: 16px;
 }
 
+div.log-controls {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #f6f8fa;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+}
+
+div.log-controls a {
+    font-weight: 500;
+}
+
+pre.commit-msg {
+    margin: 0;
+    padding: 8px 0;
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    font-size: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+td.log-stats {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+td.log-stats .insertions {
+    color: #1a7f37;
+}
+
+td.log-stats .deletions {
+    color: #cf222e;
+}
+
 /* Footer */
 div.footer {
     margin-top: 40px;
@@ -561,6 +598,19 @@ div.stats-graph canvas {
         background: #161b22;
         border-right-color: #30363d;
         color: #8b949e;
+    }
+    
+    div.log-controls {
+        background: #161b22;
+        border-color: #30363d;
+    }
+    
+    td.log-stats .insertions {
+        color: #3fb950;
+    }
+    
+    td.log-stats .deletions {
+        color: #f85149;
     }
     
     div.footer {

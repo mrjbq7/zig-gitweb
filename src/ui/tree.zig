@@ -35,7 +35,12 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
             // Try to parse as OID
             var oid: git.c.git_oid = undefined;
             if (git.c.git_oid_fromstr(&oid, id_str.ptr) == 0) {
-                break :blk try git_repo.lookupCommit(&oid);
+                const commit_obj = git_repo.lookupCommit(&oid) catch {
+                    try writer.writeAll("<p>Commit not found.</p>\n");
+                    try writer.writeAll("</div>\n");
+                    return;
+                };
+                break :blk commit_obj;
             }
         }
 
@@ -123,6 +128,13 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         }
         try writer.writeAll("cmd=tree");
 
+        // Preserve commit ID or branch
+        if (ctx.query.get("id")) |id| {
+            try writer.print("&id={s}", .{id});
+        } else if (ctx.query.get("h")) |branch| {
+            try writer.print("&h={s}", .{branch});
+        }
+
         const last_slash = std.mem.lastIndexOf(u8, base_path, "/");
         if (last_slash) |pos| {
             if (pos > 0) {
@@ -191,13 +203,27 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
             if (ctx.repo) |r| {
                 try writer.print("r={s}&", .{r.name});
             }
-            try writer.print("cmd=tree&path={s}'>{s}/</a>", .{ full_path, entry_name });
+            try writer.writeAll("cmd=tree");
+            // Preserve commit ID or branch
+            if (ctx.query.get("id")) |id| {
+                try writer.print("&id={s}", .{id});
+            } else if (ctx.query.get("h")) |branch| {
+                try writer.print("&h={s}", .{branch});
+            }
+            try writer.print("&path={s}'>{s}/</a>", .{ full_path, entry_name });
         } else {
             try writer.writeAll("<a href='?");
             if (ctx.repo) |r| {
                 try writer.print("r={s}&", .{r.name});
             }
-            try writer.print("cmd=blob&path={s}'>{s}</a>", .{ full_path, entry_name });
+            try writer.writeAll("cmd=blob");
+            // Preserve commit ID or branch
+            if (ctx.query.get("id")) |id| {
+                try writer.print("&id={s}", .{id});
+            } else if (ctx.query.get("h")) |branch| {
+                try writer.print("&h={s}", .{branch});
+            }
+            try writer.print("&path={s}'>{s}</a>", .{ full_path, entry_name });
         }
         try writer.writeAll("</td>");
 
