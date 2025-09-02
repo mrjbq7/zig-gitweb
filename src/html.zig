@@ -23,6 +23,11 @@ pub fn writeHeader(ctx: *gitweb.Context, writer: anytype) !void {
         try includeFile(writer, include);
     }
 
+    // Include Chart.js if on stats page
+    if (std.mem.eql(u8, ctx.cmd, "stats")) {
+        try writer.writeAll("<script type='text/javascript' src='/chart.js'></script>\n");
+    }
+
     try writer.writeAll("</head>\n");
     try writer.writeAll("<body>\n");
 
@@ -78,44 +83,51 @@ fn writeRepoTabs(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !voi
     try writer.writeAll("<table class='tabs'><tr><td>\n");
 
     const current_branch = ctx.query.get("h");
+    const current_path = ctx.query.get("path");
 
     // Summary tab
-    try writeTab(writer, "summary", "summary", ctx.cmd, repo.name, current_branch);
+    try writeTab(writer, "summary", "summary", ctx.cmd, repo.name, current_branch, null);
 
     // Refs tab
-    try writeTab(writer, "refs", "refs", ctx.cmd, repo.name, current_branch);
+    try writeTab(writer, "refs", "refs", ctx.cmd, repo.name, current_branch, null);
 
-    // Log tab
-    try writeTab(writer, "log", "log", ctx.cmd, repo.name, current_branch);
+    // Log tab - preserve path if present
+    try writeTab(writer, "log", "log", ctx.cmd, repo.name, current_branch, current_path);
 
-    // Tree tab
-    try writeTab(writer, "tree", "tree", ctx.cmd, repo.name, current_branch);
+    // Tree tab - preserve path if present
+    try writeTab(writer, "tree", "tree", ctx.cmd, repo.name, current_branch, current_path);
 
     // Commit tab
-    try writeTab(writer, "commit", "commit", ctx.cmd, repo.name, current_branch);
+    try writeTab(writer, "commit", "commit", ctx.cmd, repo.name, current_branch, null);
 
     // Diff tab
-    try writeTab(writer, "diff", "diff", ctx.cmd, repo.name, current_branch);
+    try writeTab(writer, "diff", "diff", ctx.cmd, repo.name, current_branch, null);
 
     // Stats tab
     if (repo.max_stats != null) {
-        try writeTab(writer, "stats", "stats", ctx.cmd, repo.name, current_branch);
+        try writeTab(writer, "stats", "stats", ctx.cmd, repo.name, current_branch, null);
     }
 
     try writer.writeAll("</td></tr></table>\n");
 }
 
-fn writeTab(writer: anytype, name: []const u8, cmd: []const u8, current_cmd: []const u8, repo_name: []const u8, branch: ?[]const u8) !void {
+fn writeTab(writer: anytype, name: []const u8, cmd: []const u8, current_cmd: []const u8, repo_name: []const u8, branch: ?[]const u8, path: ?[]const u8) !void {
     if (std.mem.eql(u8, cmd, current_cmd)) {
         try writer.print("<a class='active' href='?r={s}&cmd={s}", .{ repo_name, cmd });
         if (branch) |b| {
             try writer.print("&h={s}", .{b});
+        }
+        if (path) |p| {
+            try writer.print("&path={s}", .{p});
         }
         try writer.print("'>{s}</a>", .{name});
     } else {
         try writer.print("<a href='?r={s}&cmd={s}", .{ repo_name, cmd });
         if (branch) |b| {
             try writer.print("&h={s}", .{b});
+        }
+        if (path) |p| {
+            try writer.print("&path={s}", .{p});
         }
         try writer.print("'>{s}</a>", .{name});
     }
@@ -176,7 +188,7 @@ fn writeBranchSelector(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype
     }
 
     try writer.writeAll("</select>\n");
-    try writer.writeAll("<noscript><input type='submit' value='Switch' /></noscript>\n");
+    try writer.writeAll(" <input type='submit' value='Switch' />\n");
     try writer.writeAll("</form>\n");
     try writer.writeAll("</div>\n");
 }

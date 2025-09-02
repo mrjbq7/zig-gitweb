@@ -48,7 +48,8 @@ pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
     // Author date
     try writer.writeAll("<tr><th>Author Date</th><td>");
     try parsing.formatTimestamp(author.when.time, writer);
-    try writer.print(" {s}", .{formatTimezone(author.when.offset)});
+    const tz_buf = formatTimezone(author.when.offset);
+    try writer.print(" {s}", .{tz_buf[0..5]}); // Only use first 5 chars (+HHMM)
     try writer.writeAll("</td></tr>\n");
 
     // Committer
@@ -69,7 +70,8 @@ pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
 
         try writer.writeAll("<tr><th>Commit Date</th><td>");
         try parsing.formatTimestamp(committer.when.time, writer);
-        try writer.print(" {s}", .{formatTimezone(committer.when.offset)});
+        const tz_buf2 = formatTimezone(committer.when.offset);
+        try writer.print(" {s}", .{tz_buf2[0..5]}); // Only use first 5 chars (+HHMM)
         try writer.writeAll("</td></tr>\n");
     }
 
@@ -241,7 +243,9 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
                 '+' => self.writer.writeAll("<span class='add'>+") catch return -1,
                 '-' => self.writer.writeAll("<span class='del'>-") catch return -1,
                 '@' => self.writer.writeAll("<span class='hunk'>@") catch return -1,
-                else => self.writer.writeByte(line.*.origin) catch return -1,
+                'F' => {}, // File header lines - don't print the 'F'
+                ' ' => self.writer.writeByte(' ') catch return -1, // Context line
+                else => {}, // Don't print other origin characters
             }
 
             const content = @as([*]const u8, @ptrCast(line.*.content))[0..@intCast(line.*.content_len)];

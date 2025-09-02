@@ -113,10 +113,55 @@ pub fn formatFileSize(size: u64, writer: anytype) !void {
 }
 
 pub fn formatTimestamp(timestamp: i64, writer: anytype) !void {
-    // Simple ISO format for now
+    // Convert Unix timestamp to date/time components
     const epoch_seconds = @as(u64, @intCast(timestamp));
-    const year = @divFloor(epoch_seconds, 365 * 24 * 3600) + 1970;
-    try writer.print("{d}-01-01 00:00:00", .{year});
+
+    // Days since epoch
+    const days_since_epoch = epoch_seconds / 86400;
+    const seconds_today = epoch_seconds % 86400;
+
+    // Calculate year (approximation, then refine)
+    var year: u32 = 1970;
+    var days_left = days_since_epoch;
+
+    while (true) {
+        const days_in_year: u32 = if (isLeapYear(year)) 366 else 365;
+        if (days_left >= days_in_year) {
+            days_left -= days_in_year;
+            year += 1;
+        } else {
+            break;
+        }
+    }
+
+    // Calculate month and day
+    const days_in_months = if (isLeapYear(year))
+        [_]u32{ 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 }
+    else
+        [_]u32{ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+    var month: u32 = 1;
+    var day = days_left + 1; // +1 because days are 1-indexed
+
+    for (days_in_months) |days_in_month| {
+        if (day > days_in_month) {
+            day -= days_in_month;
+            month += 1;
+        } else {
+            break;
+        }
+    }
+
+    // Calculate time
+    const hours = seconds_today / 3600;
+    const minutes = (seconds_today % 3600) / 60;
+    const seconds = seconds_today % 60;
+
+    try writer.print("{d:0>4}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2}", .{ year, month, day, hours, minutes, seconds });
+}
+
+fn isLeapYear(year: u32) bool {
+    return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0);
 }
 
 pub fn formatDuration(seconds: u64, writer: anytype) !void {

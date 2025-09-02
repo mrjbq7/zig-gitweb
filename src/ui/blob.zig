@@ -6,9 +6,7 @@ const git = @import("../git.zig");
 const parsing = @import("../parsing.zig");
 const sharedUtils = @import("../shared.zig");
 
-const c = @cImport({
-    @cInclude("git2.h");
-});
+const c = git.c;
 
 pub fn blob(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
@@ -149,12 +147,33 @@ pub fn blob(ctx: *gitweb.Context, writer: anytype) !void {
 
 fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, writer: anytype) !void {
 
-    // Add download/raw link
-    try writer.writeAll("<div class='blob-actions'><a href='?");
+    // Add download/raw and blame links
+    try writer.writeAll("<div class='blob-actions'>");
+
+    // View Raw link
+    try writer.writeAll("<a href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
-    try writer.print("cmd=plain&path={s}'>View Raw</a></div>\n", .{path});
+    try writer.print("cmd=plain&path={s}'>View Raw</a>", .{path});
+
+    try writer.writeAll(" | ");
+
+    // Blame link
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=blame");
+    // Preserve commit ID or branch
+    if (ctx.query.get("id")) |id| {
+        try writer.print("&id={s}", .{id});
+    } else if (ctx.query.get("h")) |h| {
+        try writer.print("&h={s}", .{h});
+    }
+    try writer.print("&path={s}'>Blame</a>", .{path});
+
+    try writer.writeAll("</div>\n");
 
     // Check if content is too large
     if (content.len > 1024 * 1024) { // 1MB limit for syntax highlighting

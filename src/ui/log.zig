@@ -5,15 +5,24 @@ const shared = @import("shared.zig");
 const git = @import("../git.zig");
 const parsing = @import("../parsing.zig");
 
-const c = @cImport({
-    @cInclude("git2.h");
-});
+const c = git.c;
 
 pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
 
     try writer.writeAll("<div class='log'>\n");
-    try writer.writeAll("<h2>Commit Log</h2>\n");
+
+    // Get path parameter early
+    const path = ctx.query.get("path");
+
+    // Show title with path if filtering
+    if (path) |p| {
+        try writer.writeAll("<h2>Commit Log for ");
+        try html.htmlEscape(writer, p);
+        try writer.writeAll("</h2>\n");
+    } else {
+        try writer.writeAll("<h2>Commit Log</h2>\n");
+    }
 
     // Add expand/collapse toggle
     const showmsg = ctx.query.get("showmsg");
@@ -23,14 +32,24 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     if (ctx.repo) |r| {
         if (expanded) {
             try writer.print("<a href='?r={s}&cmd=log", .{r.name});
-            if (ctx.query.get("h")) |h| {
+            if (ctx.query.get("id")) |id| {
+                try writer.print("&id={s}", .{id});
+            } else if (ctx.query.get("h")) |h| {
                 try writer.print("&h={s}", .{h});
+            }
+            if (path) |p| {
+                try writer.print("&path={s}", .{p});
             }
             try writer.writeAll("'>Collapse</a>\n");
         } else {
             try writer.print("<a href='?r={s}&cmd=log&showmsg=1", .{r.name});
-            if (ctx.query.get("h")) |h| {
+            if (ctx.query.get("id")) |id| {
+                try writer.print("&id={s}", .{id});
+            } else if (ctx.query.get("h")) |h| {
                 try writer.print("&h={s}", .{h});
+            }
+            if (path) |p| {
+                try writer.print("&path={s}", .{p});
             }
             try writer.writeAll("'>Expand</a>\n");
         }
@@ -44,9 +63,9 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     };
     defer git_repo.close();
 
-    // Get starting point
+    // Get starting point - prefer id (commit hash) over h (branch/ref)
+    const commit_id = ctx.query.get("id");
     const ref_name = ctx.query.get("h") orelse "HEAD";
-    const path = ctx.query.get("path");
     const offset_str = ctx.query.get("ofs") orelse "0";
     const offset = std.fmt.parseInt(u32, offset_str, 10) catch 0;
 
@@ -55,24 +74,58 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     defer walk.free();
 
     // Set starting point
-    if (std.mem.eql(u8, ref_name, "HEAD")) {
-        try walk.pushHead();
-    } else {
-        // Try as full reference first (refs/heads/branch)
-        const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
-        defer ctx.allocator.free(full_ref);
-        walk.pushRef(full_ref) catch {
-            // If that fails, try as tag (refs/tags/tagname)
-            const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, @as(u8, 0));
-            defer ctx.allocator.free(tag_ref);
-            walk.pushRef(tag_ref) catch {
-                // If that also fails, try the name as-is (might be a full ref already)
-                walk.pushRef(ref_name) catch {
-                    // Fall back to HEAD if nothing works
+    if (commit_id) |id| {
+        // If we have a commit ID, start from that specific commit
+        if (git.stringToOid(id)) |oid| {
+            // Use the C API directly to push a specific commit OID
+            if (c.git_revwalk_push(walk.walk, &oid) != 0) {
+                // Failed to push commit, fall back to ref_name
+                if (std.mem.eql(u8, ref_name, "HEAD")) {
                     try walk.pushHead();
+                } else {
+                    try walk.pushHead(); // Just use HEAD as fallback
+                }
+            }
+        } else |_| {
+            // If parsing fails, fall back to ref_name
+            if (std.mem.eql(u8, ref_name, "HEAD")) {
+                try walk.pushHead();
+            } else {
+                // Try as branch/tag/ref
+                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+                defer ctx.allocator.free(full_ref);
+                walk.pushRef(full_ref) catch {
+                    const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, @as(u8, 0));
+                    defer ctx.allocator.free(tag_ref);
+                    walk.pushRef(tag_ref) catch {
+                        walk.pushRef(ref_name) catch {
+                            try walk.pushHead();
+                        };
+                    };
+                };
+            }
+        }
+    } else {
+        // No commit ID, use branch/ref
+        if (std.mem.eql(u8, ref_name, "HEAD")) {
+            try walk.pushHead();
+        } else {
+            // Try as full reference first (refs/heads/branch)
+            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+            defer ctx.allocator.free(full_ref);
+            walk.pushRef(full_ref) catch {
+                // If that fails, try as tag (refs/tags/tagname)
+                const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, @as(u8, 0));
+                defer ctx.allocator.free(tag_ref);
+                walk.pushRef(tag_ref) catch {
+                    // If that also fails, try the name as-is (might be a full ref already)
+                    walk.pushRef(ref_name) catch {
+                        // Fall back to HEAD if nothing works
+                        try walk.pushHead();
+                    };
                 };
             };
-        };
+        }
     }
 
     // Set sorting
@@ -211,40 +264,78 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn commitTouchesPath(repo: *git.Repository, commit: *git.Commit, path: []const u8) !bool {
+    // For performance, we'll use a simpler approach:
+    // Create a diff with pathspec filtering
+
+    const parent_count = commit.parentCount();
+
     // Get commit tree
-    var tree = try commit.tree();
-    defer tree.free();
+    var commit_tree = try commit.tree();
+    defer commit_tree.free();
 
-    // Check if path exists in this commit
-    var path_parts = std.mem.tokenizeAny(u8, path, "/");
-    var current_tree = tree;
+    // For initial commit, check if path exists
+    if (parent_count == 0) {
+        // Check if path exists in this commit
+        var path_parts = std.mem.tokenizeAny(u8, path, "/");
+        var current_tree = commit_tree;
 
-    while (path_parts.next()) |part| {
-        const entry = current_tree.entryByName(part);
-        if (entry == null) {
-            if (&current_tree != &tree) current_tree.free();
-            return false;
-        }
-
-        if (path_parts.peek() != null) {
-            if (c.git_tree_entry_type(@ptrCast(entry)) == c.GIT_OBJECT_TREE) {
-                const tree_oid = c.git_tree_entry_id(@ptrCast(entry));
-                const new_tree = try repo.lookupTree(@constCast(tree_oid));
-                if (&current_tree != &tree) {
-                    current_tree.free();
-                }
-                current_tree = new_tree;
-            } else {
-                if (&current_tree != &tree) current_tree.free();
+        while (path_parts.next()) |part| {
+            const entry = current_tree.entryByName(part);
+            if (entry == null) {
+                if (&current_tree != &commit_tree) current_tree.free();
                 return false;
             }
+
+            if (path_parts.peek() != null) {
+                if (c.git_tree_entry_type(@ptrCast(entry)) == c.GIT_OBJECT_TREE) {
+                    const tree_oid = c.git_tree_entry_id(@ptrCast(entry));
+                    const new_tree = try repo.lookupTree(@constCast(tree_oid));
+                    if (&current_tree != &commit_tree) {
+                        current_tree.free();
+                    }
+                    current_tree = new_tree;
+                } else {
+                    if (&current_tree != &commit_tree) current_tree.free();
+                    return false;
+                }
+            }
         }
+
+        if (&current_tree != &commit_tree) current_tree.free();
+        return true;
     }
 
-    if (&current_tree != &tree) current_tree.free();
+    // For commits with parents, use diff options with pathspec
+    var diff_opts: c.git_diff_options = undefined;
+    _ = c.git_diff_options_init(&diff_opts, c.GIT_DIFF_OPTIONS_VERSION);
 
-    // TODO: Check parent commits to see if path changed
-    return true;
+    // Set up pathspec for the path we're interested in
+    // Need null-terminated string for C API
+    var path_buf: [4096]u8 = undefined;
+    const c_path = try std.fmt.bufPrintZ(&path_buf, "{s}", .{path});
+
+    const pathspec_array: c.git_strarray = .{
+        .strings = @constCast(&[_][*c]u8{c_path.ptr}),
+        .count = 1,
+    };
+    diff_opts.pathspec = pathspec_array;
+
+    // Only need to know if files changed, not the actual changes
+    diff_opts.flags |= c.GIT_DIFF_SKIP_BINARY_CHECK;
+    diff_opts.flags |= c.GIT_DIFF_INCLUDE_UNTRACKED;
+
+    var parent = try commit.parent(0);
+    defer parent.free();
+
+    var parent_tree = try parent.tree();
+    defer parent_tree.free();
+
+    // Create diff with pathspec
+    var diff = try git.Diff.treeToTree(repo.repo, parent_tree.tree, commit_tree.tree, @ptrCast(&diff_opts));
+    defer diff.free();
+
+    // If there are any deltas, the path was touched
+    return diff.numDeltas() > 0;
 }
 
 const CommitStats = struct {

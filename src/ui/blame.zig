@@ -5,9 +5,7 @@ const shared = @import("shared.zig");
 const git = @import("../git.zig");
 const parsing = @import("../parsing.zig");
 
-const c = @cImport({
-    @cInclude("git2.h");
-});
+const c = git.c;
 
 pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
@@ -25,26 +23,49 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
     };
     defer git_repo.close();
 
-    // Get the reference
-    const ref_name = ctx.query.get("h") orelse "HEAD";
-    var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch {
-        try writer.writeAll("<p>Unable to find reference.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
-    defer ref.free();
+    // Get the commit - try id first, then h, then default to HEAD
+    var commit_oid: git.c.git_oid = undefined;
+    if (ctx.query.get("id")) |id_str| {
+        // Try to parse as OID
+        if (git.c.git_oid_fromstr(&commit_oid, id_str.ptr) != 0) {
+            // If parsing fails, try as ref
+            const ref_name = ctx.query.get("h") orelse "HEAD";
+            var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch {
+                try writer.writeAll("<p>Unable to find reference.</p>\n");
+                try writer.writeAll("</div>\n");
+                return;
+            };
+            defer ref.free();
+            const target = ref.target() orelse {
+                try writer.writeAll("<p>Invalid reference target.</p>\n");
+                try writer.writeAll("</div>\n");
+                return;
+            };
+            commit_oid = target.*;
+        }
+    } else {
+        // Try branch/ref name
+        const ref_name = ctx.query.get("h") orelse "HEAD";
+        var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch {
+            try writer.writeAll("<p>Unable to find reference.</p>\n");
+            try writer.writeAll("</div>\n");
+            return;
+        };
+        defer ref.free();
+        const target = ref.target() orelse {
+            try writer.writeAll("<p>Invalid reference target.</p>\n");
+            try writer.writeAll("</div>\n");
+            return;
+        };
+        commit_oid = target.*;
+    }
 
     // Create blame options
     var blame_opts = std.mem.zeroes(c.git_blame_options);
     _ = c.git_blame_options_init(&blame_opts, c.GIT_BLAME_OPTIONS_VERSION);
 
     // Set the newest commit
-    const target = ref.target() orelse {
-        try writer.writeAll("<p>Invalid reference target.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
-    @memcpy(&blame_opts.newest_commit.id, &target.*.id);
+    @memcpy(&blame_opts.newest_commit.id, &commit_oid.id);
 
     // Generate blame
     var blame_obj: ?*c.git_blame = null;
@@ -59,7 +80,7 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
     defer c.git_blame_free(blame_obj);
 
     // Get file content for display
-    var commit = try git_repo.lookupCommit(&target);
+    var commit = try git_repo.lookupCommit(&commit_oid);
     defer commit.free();
 
     var tree = try commit.tree();

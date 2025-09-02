@@ -334,6 +334,7 @@ pub const Context = struct {
 
         // Set some defaults
         self.repo.?.desc = try self.allocator.dupe(u8, "");
+        self.repo.?.max_stats = .year; // Enable stats tab with year view
     }
 
     fn parseQueryString(self: *Context, query_string: []const u8) !void {

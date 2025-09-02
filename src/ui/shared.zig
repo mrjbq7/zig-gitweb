@@ -115,6 +115,19 @@ pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) 
     try writer.writeAll("<div class='path'>");
     try writer.writeAll("path: ");
 
+    // Add root link
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |repo| {
+        try writer.print("r={s}&", .{repo.name});
+    }
+    try writer.writeAll("cmd=tree");
+    if (ctx.query.get("id")) |id| {
+        try writer.print("&id={s}", .{id});
+    } else if (ctx.query.get("h")) |branch| {
+        try writer.print("&h={s}", .{branch});
+    }
+    try writer.writeAll("'>root</a>");
+
     var iter = std.mem.tokenizeAny(u8, path, "/");
     var accumulated = std.ArrayList(u8){
         .items = &.{},
@@ -122,12 +135,8 @@ pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) 
     };
     defer accumulated.deinit(ctx.allocator);
 
-    var first = true;
     while (iter.next()) |segment| {
-        if (!first) {
-            try writer.writeAll(" / ");
-        }
-        first = false;
+        try writer.writeAll(" / ");
 
         if (accumulated.items.len > 0) {
             try accumulated.append(ctx.allocator, '/');
@@ -140,7 +149,9 @@ pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) 
                 try writer.print("r={s}&", .{repo.name});
             }
             try writer.writeAll("cmd=tree");
-            if (ctx.query.get("h")) |branch| {
+            if (ctx.query.get("id")) |id| {
+                try writer.print("&id={s}", .{id});
+            } else if (ctx.query.get("h")) |branch| {
                 try writer.print("&h={s}", .{branch});
             }
             try writer.print("&path={s}'>", .{accumulated.items});

@@ -115,14 +115,14 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *git.Tree, base_path: []const u8, writer: anytype) !void {
-    const headers = [_][]const u8{ "Mode", "Name", "Size", "Age" };
+    const headers = [_][]const u8{ "Mode", "Name", "Size", "Age", "Last Commit", "" };
     try html.writeTableHeader(writer, &headers);
 
     // Parent directory link
     if (base_path.len > 0) {
         try html.writeTableRow(writer, null);
-        try writer.writeAll("<td>d---------</td>");
-        try writer.writeAll("<td colspan='3'><a href='?");
+        try writer.writeAll("<td class='mode'>d---------</td>");
+        try writer.writeAll("<td colspan='5'><a href='?");
         if (ctx.repo) |r| {
             try writer.print("r={s}&", .{r.name});
         }
@@ -184,7 +184,7 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         try html.writeTableRow(writer, null);
 
         // Mode
-        try writer.writeAll("<td>");
+        try writer.writeAll("<td class='mode'>");
         try writer.writeAll(git.getFileMode(entry_mode));
         try writer.writeAll("</td>");
 
@@ -233,6 +233,8 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
             var blob = repo.lookupBlob(@constCast(entry_oid)) catch {
                 try writer.writeAll("-");
                 try writer.writeAll("</td>");
+                try writer.writeAll("<td class='age'>-</td>");
+                try writer.writeAll("<td>-</td>");
                 try writer.writeAll("<td>-</td>");
                 try writer.writeAll("</tr>\n");
                 continue;
@@ -246,14 +248,63 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         }
         try writer.writeAll("</td>");
 
-        // Age (last commit for this file)
+        // Age column
         try writer.writeAll("<td class='age'>");
-        // TODO: Get last commit for this path
+        // TODO: Get actual age of last commit
         try writer.writeAll("-");
+        try writer.writeAll("</td>");
+
+        // Last commit message for this path
+        try writer.writeAll("<td class='last-commit'>");
+
+        // Get the last commit for this path
+        const last_commit_msg = getLastCommitForPath(repo, full_path, ctx.allocator) catch blk: {
+            break :blk null;
+        };
+
+        if (last_commit_msg) |msg| {
+            defer ctx.allocator.free(msg);
+            // Truncate to first line and limit length
+            const first_line_end = std.mem.indexOfScalar(u8, msg, '\n') orelse msg.len;
+            const summary = msg[0..@min(first_line_end, 50)];
+            try html.htmlEscape(writer, summary);
+            if (first_line_end > 50) {
+                try writer.writeAll("...");
+            }
+        } else {
+            try writer.writeAll("-");
+        }
+
+        try writer.writeAll("</td>");
+
+        // Log link
+        try writer.writeAll("<td>");
+        try writer.writeAll("<a href='?");
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
+        }
+        try writer.writeAll("cmd=log");
+        // Preserve commit ID or branch
+        if (ctx.query.get("id")) |id| {
+            try writer.print("&id={s}", .{id});
+        } else if (ctx.query.get("h")) |branch| {
+            try writer.print("&h={s}", .{branch});
+        }
+        try writer.print("&path={s}'>log</a>", .{full_path});
         try writer.writeAll("</td>");
 
         try writer.writeAll("</tr>\n");
     }
 
     try html.writeTableFooter(writer);
+}
+
+fn getLastCommitForPath(repo: *git.Repository, path: []const u8, allocator: std.mem.Allocator) ![]u8 {
+    // For performance reasons, we'll just show a placeholder for now
+    // A full implementation would use git log --follow or pathspec filtering
+    // but that can be very slow for large repositories
+    _ = repo;
+    _ = path;
+    _ = allocator;
+    return error.NotImplemented;
 }
