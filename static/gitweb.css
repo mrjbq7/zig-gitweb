@@ -438,6 +438,24 @@ div.stats-graph canvas {
     border-radius: 6px;
 }
 
+/* Stats sections */
+div.stats-section {
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+}
+
+div.stats-section:last-child {
+    margin-bottom: 0;
+}
+
+div.stats-section h3 {
+    margin-bottom: 20px;
+}
+
+div.stats-summary {
+    margin-bottom: 30px;
+}
+
 /* Tooltips */
 .tooltip {
     position: relative;

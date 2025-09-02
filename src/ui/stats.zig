@@ -10,7 +10,14 @@ pub fn stats(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
 
     try writer.writeAll("<div class='stats'>\n");
-    try writer.writeAll("<h2>Repository Statistics (All Time)</h2>\n");
+
+    // Show which branch we're looking at
+    const ref_name = ctx.query.get("h") orelse "HEAD";
+    if (std.mem.eql(u8, ref_name, "HEAD")) {
+        try writer.writeAll("<h2>Repository Statistics (All Time)</h2>\n");
+    } else {
+        try writer.print("<h2>Repository Statistics - Branch: {s}</h2>\n", .{ref_name});
+    }
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
@@ -125,13 +132,57 @@ fn collectStatistics(ctx: *gitweb.Context, repo: *git.Repository) !StatsData {
     var walk = try repo.revwalk();
     defer walk.free();
 
-    try walk.pushHead();
-    walk.setSorting(c.GIT_SORT_TIME);
+    // Check for branch/ref filter
+    const ref_name = ctx.query.get("h") orelse "HEAD";
 
+    // Try to resolve the reference
+    if (std.mem.eql(u8, ref_name, "HEAD")) {
+        try walk.pushHead();
+    } else {
+        // Try to get the reference
+        var ref = repo.getReference(ref_name) catch {
+            // If direct reference fails, try with refs/heads/ prefix
+            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+            defer ctx.allocator.free(full_ref);
+
+            var ref2 = repo.getReference(full_ref) catch {
+                // Fall back to HEAD if branch not found
+                try walk.pushHead();
+                walk.setSorting(c.GIT_SORT_TIME);
+                return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
+            };
+            defer ref2.free();
+
+            const oid = ref2.target() orelse {
+                // Fall back to HEAD if target not found
+                try walk.pushHead();
+                walk.setSorting(c.GIT_SORT_TIME);
+                return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
+            };
+            _ = c.git_revwalk_push(walk.walk, oid);
+            walk.setSorting(c.GIT_SORT_TIME);
+            return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
+        };
+        defer ref.free();
+
+        const oid = ref.target() orelse {
+            // Fall back to HEAD if target not found
+            try walk.pushHead();
+            walk.setSorting(c.GIT_SORT_TIME);
+            return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
+        };
+        _ = c.git_revwalk_push(walk.walk, oid);
+    }
+
+    walk.setSorting(c.GIT_SORT_TIME);
+    return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
+}
+
+fn collectStatisticsFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git.RevWalk, stats_data: *StatsData) !StatsData {
     const now = std.time.timestamp();
     const thirty_days_ago = now - (30 * 24 * 60 * 60);
 
-    // Process all commits in the repository
+    // Process all commits in the branch/repository
     while (walk.next()) |oid| {
         var commit = try repo.lookupCommit(&oid);
         defer commit.free();
@@ -191,7 +242,7 @@ fn collectStatistics(ctx: *gitweb.Context, repo: *git.Repository) !StatsData {
         }
     }
 
-    return stats_data;
+    return stats_data.*;
 }
 
 fn renderRecentActivity(ctx: *gitweb.Context, writer: anytype, stats_data: *const StatsData) !void {
