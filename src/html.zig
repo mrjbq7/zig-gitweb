@@ -108,6 +108,9 @@ fn writeRepoTabs(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !voi
         try writeTab(writer, "stats", "stats", ctx.cmd, repo.name, current_branch, null);
     }
 
+    // Search tab
+    try writeTab(writer, "search", "search", ctx.cmd, repo.name, current_branch, null);
+
     try writer.writeAll("</td></tr></table>\n");
 }
 

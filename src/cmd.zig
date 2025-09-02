@@ -16,6 +16,7 @@ const ui_blame = @import("ui/blame.zig");
 const ui_atom = @import("ui/atom.zig");
 const ui_clone = @import("ui/clone.zig");
 const ui_plain = @import("ui/plain.zig");
+const ui_search = @import("ui/search.zig");
 
 pub const CommandHandler = fn (ctx: *gitweb.Context, writer: std.io.AnyWriter) anyerror!void;
 
@@ -41,6 +42,7 @@ const commands = [_]Command{
     .{ .name = "rawdiff", .handler = ui_diff.rawdiff, .wants_repo = true },
     .{ .name = "refs", .handler = ui_refs.refs, .wants_repo = true },
     .{ .name = "repolist", .handler = ui_repolist.repolist, .wants_repo = false },
+    .{ .name = "search", .handler = ui_search.search, .wants_repo = true },
     .{ .name = "snapshot", .handler = ui_snapshot.snapshot, .wants_repo = true },
     .{ .name = "stats", .handler = ui_stats.stats, .wants_repo = true },
     .{ .name = "summary", .handler = ui_summary.summary, .wants_repo = true },
@@ -75,6 +77,7 @@ pub fn dispatch(ctx: *gitweb.Context, writer: anytype) !void {
     if (std.mem.eql(u8, cmd, "rawdiff")) return ui_diff.rawdiff(ctx, writer);
     if (std.mem.eql(u8, cmd, "refs")) return ui_refs.refs(ctx, writer);
     if (std.mem.eql(u8, cmd, "repolist")) return ui_repolist.repolist(ctx, writer);
+    if (std.mem.eql(u8, cmd, "search")) return ui_search.search(ctx, writer);
     if (std.mem.eql(u8, cmd, "snapshot")) return ui_snapshot.snapshot(ctx, writer);
     if (std.mem.eql(u8, cmd, "stats")) return ui_stats.stats(ctx, writer);
     if (std.mem.eql(u8, cmd, "tag")) return ui_tag.tag(ctx, writer);

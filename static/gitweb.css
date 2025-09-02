@@ -456,6 +456,83 @@ div.stats-summary {
     margin-bottom: 30px;
 }
 
+/* Search form and results */
+form.search-form {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f6f8fa;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+}
+
+div.search-input {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+div.search-input input[type="text"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #d1d5da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+div.search-input select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5da;
+    border-radius: 4px;
+    background: white;
+    font-size: 14px;
+}
+
+div.search-input input[type="submit"] {
+    padding: 8px 16px;
+    background: #238636;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+div.search-input input[type="submit"]:hover {
+    background: #2c974b;
+}
+
+table.search-results {
+    width: 100%;
+    margin-top: 20px;
+    border-collapse: collapse;
+}
+
+table.search-results th {
+    background: #f6f8fa;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 2px solid #d1d5da;
+    font-weight: 600;
+}
+
+table.search-results td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #e1e4e8;
+    vertical-align: top;
+}
+
+table.search-results tr:hover {
+    background: #f6f8fa;
+}
+
+table.search-results code {
+    font-family: 'SFMono-Regular', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-size: 12px;
+    background: #f6f8fa;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
 /* Tooltips */
 .tooltip {
     position: relative;
