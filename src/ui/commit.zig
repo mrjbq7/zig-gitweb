@@ -242,9 +242,10 @@ pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.Commit, writer: anytype) !void {
-    _ = ctx;
-
     try writer.writeAll("<h3>Changes</h3>\n");
+
+    // Get the commit SHA for use in log links
+    const commit_oid_str = try git.oidToString(commit_obj.id());
 
     // Get parent tree (or null for initial commit)
     var parent_tree: ?git.Tree = null;
@@ -342,6 +343,54 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
         if (additions > 0 or deletions_count > 0) {
             try writer.print("<span style='color: green'>+{d}</span> <span style='color: red'>-{d}</span>", .{ additions, deletions_count });
         }
+
+        try writer.writeAll("</td><td style='padding-left: 20px;'>");
+
+        // Add links for the file
+        // Use the appropriate file path based on the status
+        const file_path = switch (delta.*.status) {
+            c.GIT_DELTA_DELETED => std.mem.span(old_file.path),
+            else => std.mem.span(new_file.path),
+        };
+
+        // Don't show view/blame links for deleted files
+        if (delta.*.status != c.GIT_DELTA_DELETED) {
+            // View link (blob at this commit)
+            try writer.writeAll("<a href='?");
+            if (ctx.repo) |r| {
+                try writer.print("r={s}&", .{r.name});
+            }
+            try writer.writeAll("cmd=blob");
+            try writer.print("&id={s}", .{commit_oid_str});
+            try writer.writeAll("&path=");
+            try html.urlEncodePath(writer, file_path);
+            try writer.writeAll("'>view</a> | ");
+
+            // Blame link
+            try writer.writeAll("<a href='?");
+            if (ctx.repo) |r| {
+                try writer.print("r={s}&", .{r.name});
+            }
+            try writer.writeAll("cmd=blame");
+            try writer.print("&id={s}", .{commit_oid_str});
+            try writer.writeAll("&path=");
+            try html.urlEncodePath(writer, file_path);
+            try writer.writeAll("'>blame</a> | ");
+        }
+
+        // Log link (history up to this commit)
+        try writer.writeAll("<a href='?");
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
+        }
+        try writer.writeAll("cmd=log");
+
+        // Use the commit SHA as the starting point for the log
+        try writer.print("&id={s}", .{commit_oid_str});
+
+        try writer.writeAll("&path=");
+        try html.urlEncodePath(writer, file_path);
+        try writer.writeAll("'>log</a>");
 
         try writer.writeAll("</td></tr>\n");
     }

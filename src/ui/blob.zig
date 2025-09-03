@@ -226,7 +226,7 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.
 
     // Add action links for binary files
     try writer.writeAll("<div class='blob-actions'>");
-    
+
     // Download link
     try writer.writeAll("<a href='?");
     if (ctx.repo) |r| {
@@ -237,7 +237,7 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.
     try writer.print("' download>Download ({s}, ", .{mime_type});
     try parsing.formatFileSize(size, writer);
     try writer.writeAll(")</a>");
-    
+
     // Hex dump link
     try writer.writeAll(" | <a href='?");
     if (ctx.repo) |r| {
@@ -250,7 +250,7 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.
     try writer.writeAll("&path=");
     try html.urlEncodePath(writer, path);
     try writer.writeAll("&hex=1'>Hex Dump</a>");
-    
+
     try writer.writeAll("</div>\n");
 
     if (std.mem.startsWith(u8, mime_type, "image/")) {
@@ -273,11 +273,11 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.
 fn displayHexDump(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git_oid, content: []const u8, writer: anytype) !void {
     const size = content.len;
     const mime_type = sharedUtils.getMimeType(path);
-    
+
     // Add action links
     try writer.writeAll("<div class='blob-actions'>");
-    
-    // Download link  
+
+    // Download link
     try writer.writeAll("<a href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
@@ -287,7 +287,7 @@ fn displayHexDump(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git
     try writer.print("' download>Download ({s}, ", .{mime_type});
     try parsing.formatFileSize(size, writer);
     try writer.writeAll(")</a>");
-    
+
     // Normal view link
     try writer.writeAll(" | <a href='?");
     if (ctx.repo) |r| {
@@ -300,31 +300,31 @@ fn displayHexDump(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git
     try writer.writeAll("&path=");
     try html.urlEncodePath(writer, path);
     try writer.writeAll("'>Normal View</a>");
-    
+
     try writer.writeAll("</div>\n");
 
     // Display blob SHA
     const oid_str = try git.oidToString(blob_oid);
     try writer.print("<div class='blob-info'>blob: {s} (plain)</div>\n", .{oid_str});
-    
+
     // Hex dump table
     try writer.writeAll("<div class='hex-dump'>\n");
     try writer.writeAll("<table class='hex-dump-table'>\n");
     try writer.writeAll("<thead><tr><th>offset</th><th>hex dump</th><th>ascii</th></tr></thead>\n");
     try writer.writeAll("<tbody>\n");
-    
+
     var offset: usize = 0;
     const bytes_per_line = 16;
-    
+
     while (offset < content.len) {
         const end = @min(offset + bytes_per_line, content.len);
         const line = content[offset..end];
-        
+
         try writer.writeAll("<tr>");
-        
+
         // Offset column
         try writer.print("<td class='offset'>{x:0>8}</td>", .{offset});
-        
+
         // Hex dump column
         try writer.writeAll("<td class='hex'>");
         for (line, 0..) |byte, i| {
@@ -340,7 +340,7 @@ fn displayHexDump(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git
             if (line.len <= 8) try writer.writeAll(" "); // Extra space if first half is incomplete
         }
         try writer.writeAll("</td>");
-        
+
         // ASCII column
         try writer.writeAll("<td class='ascii'>");
         for (line) |byte| {
@@ -351,11 +351,11 @@ fn displayHexDump(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git
             }
         }
         try writer.writeAll("</td>");
-        
+
         try writer.writeAll("</tr>\n");
         offset += bytes_per_line;
     }
-    
+
     try writer.writeAll("</tbody>\n");
     try writer.writeAll("</table>\n");
     try writer.writeAll("</div>\n");

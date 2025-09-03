@@ -29,19 +29,23 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
         // Try to parse as OID
         if (git.c.git_oid_fromstr(&commit_oid, id_str.ptr) != 0) {
             // If parsing fails, try as ref
-            const ref_name = ctx.query.get("h") orelse "HEAD";
+            const ref_name = id_str;
             var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch {
                 try writer.writeAll("<p>Unable to find reference.</p>\n");
                 try writer.writeAll("</div>\n");
                 return;
             };
             defer ref.free();
-            const target = ref.target() orelse {
-                try writer.writeAll("<p>Invalid reference target.</p>\n");
+
+            // Resolve symbolic reference to commit
+            var commit_obj = ref.peel(git.c.GIT_OBJECT_COMMIT) catch {
+                try writer.writeAll("<p>Unable to resolve reference to commit.</p>\n");
                 try writer.writeAll("</div>\n");
                 return;
             };
-            commit_oid = target.*;
+            defer commit_obj.free();
+
+            commit_oid = c.git_object_id(@ptrCast(commit_obj.obj)).*;
         }
     } else {
         // Try branch/ref name
@@ -52,27 +56,31 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
             return;
         };
         defer ref.free();
-        const target = ref.target() orelse {
-            try writer.writeAll("<p>Invalid reference target.</p>\n");
+
+        // Resolve symbolic reference to commit
+        var commit_obj = ref.peel(git.c.GIT_OBJECT_COMMIT) catch {
+            try writer.writeAll("<p>Unable to resolve reference to commit.</p>\n");
             try writer.writeAll("</div>\n");
             return;
         };
-        commit_oid = target.*;
+        defer commit_obj.free();
+
+        commit_oid = c.git_object_id(@ptrCast(commit_obj.obj)).*;
     }
 
     // Create blame options
     var blame_opts = std.mem.zeroes(c.git_blame_options);
     _ = c.git_blame_options_init(&blame_opts, c.GIT_BLAME_OPTIONS_VERSION);
 
-    // Set the newest commit
-    @memcpy(&blame_opts.newest_commit.id, &commit_oid.id);
+    // Don't set newest_commit - let git_blame_file figure it out from HEAD
 
     // Generate blame
     var blame_obj: ?*c.git_blame = null;
     const c_path = try std.heap.c_allocator.dupeZ(u8, path);
     defer std.heap.c_allocator.free(c_path);
 
-    if (c.git_blame_file(&blame_obj, @ptrCast(git_repo.repo), c_path, &blame_opts) != 0) {
+    const blame_result = c.git_blame_file(&blame_obj, @ptrCast(git_repo.repo), c_path, &blame_opts);
+    if (blame_result != 0) {
         try writer.writeAll("<p>Unable to generate blame for this file.</p>\n");
         try writer.writeAll("</div>\n");
         return;

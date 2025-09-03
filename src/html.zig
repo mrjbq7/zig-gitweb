@@ -291,7 +291,7 @@ pub fn urlDecode(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
         .capacity = 0,
     };
     defer result.deinit(allocator);
-    
+
     var i: usize = 0;
     while (i < text.len) {
         if (text[i] == '%' and i + 2 < text.len) {
@@ -314,7 +314,7 @@ pub fn urlDecode(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
             i += 1;
         }
     }
-    
+
     return result.toOwnedSlice(allocator);
 }
 
