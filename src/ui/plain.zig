@@ -8,6 +8,9 @@ pub fn plain(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
     const path = ctx.query.get("path") orelse return error.NoPath;
 
+    // Set the filename for the download
+    ctx.page.filename = std.fs.path.basename(path);
+
     // Determine MIME type based on file extension
     const ext = std.fs.path.extension(path);
     if (ctx.cfg.mimetypes.get(ext)) |mimetype| {

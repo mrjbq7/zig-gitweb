@@ -538,6 +538,49 @@ div.stats-summary {
     margin-bottom: 30px;
 }
 
+/* Hex dump table */
+.hex-dump-table {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 13px;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.hex-dump-table thead {
+    background: #f6f8fa;
+    border-bottom: 2px solid #d1d5da;
+}
+
+.hex-dump-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-weight: 600;
+}
+
+.hex-dump-table td {
+    padding: 4px 12px;
+    border-bottom: 1px solid #e1e4e8;
+}
+
+.hex-dump-table td.offset {
+    color: #57606a;
+    font-weight: 500;
+}
+
+.hex-dump-table td.hex {
+    color: #0969da;
+    white-space: pre;
+}
+
+.hex-dump-table td.ascii {
+    color: #24292f;
+    white-space: pre;
+}
+
+.hex-dump-table tbody tr:hover {
+    background: #f6f8fa;
+}
+
 /* Search form and results */
 form.search-form {
     margin: 20px 0;
@@ -880,6 +923,32 @@ table.ssdiff tr:hover {
         background: #161b22;
         border-bottom-color: #30363d;
         color: #c9d1d9;
+    }
+    
+    /* Hex dump dark mode */
+    .hex-dump-table thead {
+        background: #161b22;
+        border-bottom-color: #30363d;
+    }
+    
+    .hex-dump-table td {
+        border-bottom-color: #21262d;
+    }
+    
+    .hex-dump-table td.offset {
+        color: #8b949e;
+    }
+    
+    .hex-dump-table td.hex {
+        color: #58a6ff;
+    }
+    
+    .hex-dump-table td.ascii {
+        color: #c9d1d9;
+    }
+    
+    .hex-dump-table tbody tr:hover {
+        background: #161b22;
     }
     
     input[type="text"], input[type="search"], select {

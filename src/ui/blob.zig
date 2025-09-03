@@ -136,8 +136,13 @@ pub fn blob(ctx: *gitweb.Context, writer: anytype) !void {
     // Display content
     const content = blob_obj.content();
 
-    if (is_binary or sharedUtils.isBinaryContent(content)) {
-        try displayBinaryFile(ctx, path, size, writer);
+    // Check if hex dump mode is requested
+    const show_hex = if (ctx.query.get("hex")) |h| std.mem.eql(u8, h, "1") else false;
+
+    if (show_hex) {
+        try displayHexDump(ctx, path, blob_oid, content, writer);
+    } else if (is_binary or sharedUtils.isBinaryContent(content)) {
+        try displayBinaryFile(ctx, path, blob_oid, size, writer);
     } else {
         try displayTextFile(ctx, path, content, writer);
     }
@@ -213,10 +218,40 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
     try writer.writeAll("</pre>\n");
 }
 
-fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, size: u64, writer: anytype) !void {
+fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git_oid, size: u64, writer: anytype) !void {
+    _ = blob_oid;
     const mime_type = sharedUtils.getMimeType(path);
 
     try writer.writeAll("<div class='binary-file'>\n");
+
+    // Add action links for binary files
+    try writer.writeAll("<div class='blob-actions'>");
+    
+    // Download link
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=plain&path=");
+    try html.urlEncodePath(writer, path);
+    try writer.print("' download>Download ({s}, ", .{mime_type});
+    try parsing.formatFileSize(size, writer);
+    try writer.writeAll(")</a>");
+    
+    // Hex dump link
+    try writer.writeAll(" | <a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=blob");
+    if (ctx.query.get("h")) |h| {
+        try writer.print("&h={s}", .{h});
+    }
+    try writer.writeAll("&path=");
+    try html.urlEncodePath(writer, path);
+    try writer.writeAll("&hex=1'>Hex Dump</a>");
+    
+    try writer.writeAll("</div>\n");
 
     if (std.mem.startsWith(u8, mime_type, "image/")) {
         // Display image
@@ -228,18 +263,100 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, size: u64, writer: 
         try html.urlEncodePath(writer, path);
         try writer.print("' alt='{s}' style='max-width: 100%;' />\n", .{std.fs.path.basename(path)});
     } else {
-        // Show download link
-        try writer.writeAll("<p>Binary file cannot be displayed.</p>\n");
-        try writer.writeAll("<a href='?");
-        if (ctx.repo) |r| {
-            try writer.print("r={s}&", .{r.name});
-        }
-        try writer.writeAll("cmd=plain&path=");
-        try html.urlEncodePath(writer, path);
-        try writer.print("' download>Download ({s}, ", .{mime_type});
-        try parsing.formatFileSize(size, writer);
-        try writer.writeAll(")</a>\n");
+        // Show message for non-image binary files
+        try writer.writeAll("<p>Binary file cannot be displayed directly.</p>\n");
     }
 
+    try writer.writeAll("</div>\n");
+}
+
+fn displayHexDump(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git_oid, content: []const u8, writer: anytype) !void {
+    const size = content.len;
+    const mime_type = sharedUtils.getMimeType(path);
+    
+    // Add action links
+    try writer.writeAll("<div class='blob-actions'>");
+    
+    // Download link  
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=plain&path=");
+    try html.urlEncodePath(writer, path);
+    try writer.print("' download>Download ({s}, ", .{mime_type});
+    try parsing.formatFileSize(size, writer);
+    try writer.writeAll(")</a>");
+    
+    // Normal view link
+    try writer.writeAll(" | <a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=blob");
+    if (ctx.query.get("h")) |h| {
+        try writer.print("&h={s}", .{h});
+    }
+    try writer.writeAll("&path=");
+    try html.urlEncodePath(writer, path);
+    try writer.writeAll("'>Normal View</a>");
+    
+    try writer.writeAll("</div>\n");
+
+    // Display blob SHA
+    const oid_str = try git.oidToString(blob_oid);
+    try writer.print("<div class='blob-info'>blob: {s} (plain)</div>\n", .{oid_str});
+    
+    // Hex dump table
+    try writer.writeAll("<div class='hex-dump'>\n");
+    try writer.writeAll("<table class='hex-dump-table'>\n");
+    try writer.writeAll("<thead><tr><th>offset</th><th>hex dump</th><th>ascii</th></tr></thead>\n");
+    try writer.writeAll("<tbody>\n");
+    
+    var offset: usize = 0;
+    const bytes_per_line = 16;
+    
+    while (offset < content.len) {
+        const end = @min(offset + bytes_per_line, content.len);
+        const line = content[offset..end];
+        
+        try writer.writeAll("<tr>");
+        
+        // Offset column
+        try writer.print("<td class='offset'>{x:0>8}</td>", .{offset});
+        
+        // Hex dump column
+        try writer.writeAll("<td class='hex'>");
+        for (line, 0..) |byte, i| {
+            if (i == 8) try writer.writeAll(" "); // Extra space in middle
+            try writer.print(" {x:0>2}", .{byte});
+        }
+        // Pad if line is short
+        if (line.len < bytes_per_line) {
+            const padding = bytes_per_line - line.len;
+            for (0..padding) |_| {
+                try writer.writeAll("   ");
+            }
+            if (line.len <= 8) try writer.writeAll(" "); // Extra space if first half is incomplete
+        }
+        try writer.writeAll("</td>");
+        
+        // ASCII column
+        try writer.writeAll("<td class='ascii'>");
+        for (line) |byte| {
+            if (std.ascii.isPrint(byte) and byte != '<' and byte != '>' and byte != '&') {
+                try writer.writeByte(byte);
+            } else {
+                try writer.writeAll(".");
+            }
+        }
+        try writer.writeAll("</td>");
+        
+        try writer.writeAll("</tr>\n");
+        offset += bytes_per_line;
+    }
+    
+    try writer.writeAll("</tbody>\n");
+    try writer.writeAll("</table>\n");
     try writer.writeAll("</div>\n");
 }
