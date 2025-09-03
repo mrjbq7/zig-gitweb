@@ -312,7 +312,7 @@ fn getLastCommitForPath(repo: *git.Repository, path: []const u8, allocator: std.
     // Limit the walk to avoid timeout on large repos
     var checked_commits: usize = 0;
     const max_commits: usize = 100; // Only check last 100 commits for performance
-    
+
     // Walk through commits looking for one that touches this path
     while (walk.next()) |oid| {
         if (checked_commits >= max_commits) {
@@ -320,7 +320,7 @@ fn getLastCommitForPath(repo: *git.Repository, path: []const u8, allocator: std.
             return error.PathNotFound;
         }
         checked_commits += 1;
-        
+
         var commit = repo.lookupCommit(&oid) catch continue;
         defer commit.free();
 

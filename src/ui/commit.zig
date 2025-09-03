@@ -277,9 +277,80 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
     try writer.print("<span style='color: red'>{d} deletion{s}(-)</span>\n", .{ deletions, if (deletions == 1) "" else "s" });
     try writer.writeAll("</div>\n");
 
+    // Show file list with per-file stats
+    const num_deltas = diff.numDeltas();
+    try writer.writeAll("<div class='diff-filelist'>\n");
+    try writer.writeAll("<table>\n");
+
+    for (0..num_deltas) |i| {
+        const delta = diff.getDelta(i).?;
+        const old_file = delta.*.old_file;
+        const new_file = delta.*.new_file;
+
+        // Get per-file stats
+        var patch: ?*c.git_patch = null;
+        var additions: usize = 0;
+        var deletions_count: usize = 0;
+
+        if (c.git_patch_from_diff(&patch, @ptrCast(diff.diff), i) == 0) {
+            defer c.git_patch_free(patch);
+
+            var total: usize = 0;
+            var adds: usize = 0;
+            var dels: usize = 0;
+            _ = c.git_patch_line_stats(&total, &adds, &dels, patch);
+            additions = adds;
+            deletions_count = dels;
+        }
+
+        try writer.writeAll("<tr><td>");
+
+        // File name with status
+        switch (delta.*.status) {
+            c.GIT_DELTA_ADDED => {
+                try writer.writeAll("<span style='color: green'>A</span> ");
+                try html.htmlEscape(writer, std.mem.span(new_file.path));
+            },
+            c.GIT_DELTA_DELETED => {
+                try writer.writeAll("<span style='color: red'>D</span> ");
+                try html.htmlEscape(writer, std.mem.span(old_file.path));
+            },
+            c.GIT_DELTA_MODIFIED => {
+                try writer.writeAll("M ");
+                try html.htmlEscape(writer, std.mem.span(new_file.path));
+            },
+            c.GIT_DELTA_RENAMED => {
+                try writer.writeAll("R ");
+                try html.htmlEscape(writer, std.mem.span(old_file.path));
+                try writer.writeAll(" → ");
+                try html.htmlEscape(writer, std.mem.span(new_file.path));
+            },
+            c.GIT_DELTA_COPIED => {
+                try writer.writeAll("C ");
+                try html.htmlEscape(writer, std.mem.span(old_file.path));
+                try writer.writeAll(" → ");
+                try html.htmlEscape(writer, std.mem.span(new_file.path));
+            },
+            else => {
+                try html.htmlEscape(writer, std.mem.span(new_file.path));
+            },
+        }
+
+        try writer.writeAll("</td><td style='text-align: right; padding-left: 20px;'>");
+
+        // Show additions/deletions for this file
+        if (additions > 0 or deletions_count > 0) {
+            try writer.print("<span style='color: green'>+{d}</span> <span style='color: red'>-{d}</span>", .{ additions, deletions_count });
+        }
+
+        try writer.writeAll("</td></tr>\n");
+    }
+
+    try writer.writeAll("</table>\n");
+    try writer.writeAll("</div>\n");
+
     // Show each file's diff in a separate container
     try writer.writeAll("<div class='diff-files'>\n");
-    const num_deltas = diff.numDeltas();
 
     for (0..num_deltas) |i| {
         const delta = diff.getDelta(i).?;
@@ -322,15 +393,15 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
         }
 
         try writer.writeAll("</div>\n");
-        
+
         // Show this file's diff content
         try writer.writeAll("<pre class='diff'>\n");
-        
+
         // Create a patch for just this file
         var patch: ?*c.git_patch = null;
         if (c.git_patch_from_diff(&patch, @ptrCast(diff.diff), i) == 0) {
             defer c.git_patch_free(patch);
-            
+
             // Print the patch content
             const callback_data = struct {
                 writer: @TypeOf(writer),
@@ -371,10 +442,10 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
                     return 0;
                 }
             }{ .writer = writer };
-            
+
             _ = c.git_patch_print(patch, @TypeOf(callback_data).printLine, @ptrCast(@constCast(&callback_data)));
         }
-        
+
         try writer.writeAll("</pre>\n");
         try writer.writeAll("</div>\n");
     }

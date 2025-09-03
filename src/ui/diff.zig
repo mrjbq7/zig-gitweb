@@ -205,24 +205,24 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
 fn displayUnifiedDiff(diff_obj: *git.Diff, writer: anytype) !void {
     // Iterate through each file in the diff
     const num_deltas = diff_obj.numDeltas();
-    
+
     for (0..num_deltas) |delta_idx| {
         const delta = diff_obj.getDelta(delta_idx) orelse continue;
-        
+
         // File header with clear visual separation
         try writer.writeAll("<div class='diff-file'>\n");
         try writer.writeAll("<div class='diff-file-header'>\n");
-        
+
         // Show file path changes
         const old_path = std.mem.span(delta.old_file.path);
         const new_path = std.mem.span(delta.new_file.path);
-        
+
         if (std.mem.eql(u8, old_path, new_path)) {
             try writer.print("<strong>{s}</strong>", .{new_path});
         } else {
             try writer.print("<strong>{s} → {s}</strong>", .{ old_path, new_path });
         }
-        
+
         // Show file status
         const status_str = switch (delta.status) {
             c.GIT_DELTA_ADDED => " (new file)",
@@ -234,20 +234,20 @@ fn displayUnifiedDiff(diff_obj: *git.Diff, writer: anytype) !void {
             else => "",
         };
         try writer.writeAll(status_str);
-        
+
         try writer.writeAll("</div>\n");
-        
+
         // File diff content
         try writer.writeAll("<pre class='diff'>\n");
-        
+
         // Print only this file's patch
         var patch: ?*c.git_patch = null;
         if (c.git_patch_from_diff(&patch, @ptrCast(diff_obj.diff), delta_idx) == 0) {
             defer c.git_patch_free(patch);
-            
+
             var buf = std.mem.zeroes(c.git_buf);
             defer c.git_buf_dispose(&buf);
-            
+
             if (c.git_patch_to_buf(&buf, patch) == 0) {
                 const patch_str = buf.ptr[0..buf.size];
                 // Skip the file header lines that git_patch_to_buf adds
@@ -258,15 +258,15 @@ fn displayUnifiedDiff(diff_obj: *git.Diff, writer: anytype) !void {
                         line_start -= 1;
                     }
                     const lines_to_show = patch_str[line_start..];
-                    
+
                     // Parse and display the patch lines
                     var lines = std.mem.tokenizeScalar(u8, lines_to_show, '\n');
                     while (lines.next()) |line_content| {
                         if (line_content.len == 0) continue;
-                        
+
                         const origin = line_content[0];
                         const content = if (line_content.len > 1) line_content[1..] else "";
-                        
+
                         switch (origin) {
                             '@' => {
                                 try writer.writeAll("<span class='hunk'>@");
@@ -297,7 +297,7 @@ fn displayUnifiedDiff(diff_obj: *git.Diff, writer: anytype) !void {
                 }
             }
         }
-        
+
         try writer.writeAll("</pre>\n");
         try writer.writeAll("</div>\n");
     }
