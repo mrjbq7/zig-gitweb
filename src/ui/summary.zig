@@ -124,7 +124,7 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
 }
 
 fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
-    try writer.writeAll("<h3>Branches</h3>\n");
+    try writer.writeAll("<h3>Recent Branches</h3>\n");
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
@@ -140,59 +140,95 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
         return;
     }
 
-    try html.writeTableHeader(writer, &[_][]const u8{ "Branch", "Commit", "Author", "Age" });
+    // Structure to hold branch data with timestamp for sorting
+    const BranchInfo = struct {
+        branch: git.Branch,
+        timestamp: i64,
+        oid_str: [40]u8,
+        author_name: []const u8,
+    };
 
-    var shown: u32 = 0;
+    // Collect branch info with timestamps
+    var branch_infos: std.ArrayList(BranchInfo) = .empty;
+    defer {
+        for (branch_infos.items) |info| {
+            @constCast(&info.branch.ref).free();
+        }
+        branch_infos.deinit(ctx.allocator);
+    }
+
     for (branches) |branch| {
-        if (!branch.is_remote and shown < ctx.cfg.summary_branches) {
-            shown += 1;
-            defer @constCast(&branch.ref).free();
-
+        if (!branch.is_remote) {
             const target = @constCast(&branch.ref).target() orelse continue;
-            var commit = try git_repo.lookupCommit(target);
+            var commit = git_repo.lookupCommit(target) catch continue;
             defer commit.free();
 
             const oid_str = try git.oidToString(commit.id());
             const author_sig = commit.author();
             const commit_time = commit.time();
 
-            try html.writeTableRow(writer, null);
+            var oid_buf: [40]u8 = undefined;
+            @memcpy(&oid_buf, oid_str[0..40]);
 
-            // Branch name
-            try writer.writeAll("<td>");
-            if (ctx.repo) |r| {
-                try writer.print("<a href='?r={s}&h={s}'>{s}</a>", .{ r.name, branch.name, branch.name });
-            } else {
-                try writer.print("<a href='?h={s}'>{s}</a>", .{ branch.name, branch.name });
-            }
-            try writer.writeAll("</td>");
-
-            // Commit
-            try writer.writeAll("<td>");
-            try shared.writeCommitLink(ctx, writer, &oid_str, oid_str[0..7]);
-            try writer.writeAll("</td>");
-
-            // Author
-            try writer.writeAll("<td>");
-            try html.htmlEscape(writer, std.mem.span(author_sig.name));
-            try writer.writeAll("</td>");
-
-            // Age
-            try writer.writeAll("<td class='age' data-timestamp='");
-            try writer.print("{d}", .{commit_time});
-            try writer.writeAll("'>");
-            try shared.formatAge(writer, commit_time);
-            try writer.writeAll("</td>");
-
-            try writer.writeAll("</tr>\n");
+            try branch_infos.append(ctx.allocator, BranchInfo{
+                .branch = branch,
+                .timestamp = commit_time,
+                .oid_str = oid_buf,
+                .author_name = std.mem.span(author_sig.name),
+            });
         }
+    }
+
+    // Sort branches by timestamp (most recent first)
+    std.mem.sort(BranchInfo, branch_infos.items, {}, struct {
+        fn lessThan(_: void, a: BranchInfo, b: BranchInfo) bool {
+            return a.timestamp > b.timestamp;
+        }
+    }.lessThan);
+
+    try html.writeTableHeader(writer, &[_][]const u8{ "Branch", "Commit", "Author", "Age" });
+
+    var shown: u32 = 0;
+    for (branch_infos.items) |info| {
+        if (shown >= ctx.cfg.summary_branches) break;
+        shown += 1;
+
+        try html.writeTableRow(writer, null);
+
+        // Branch name
+        try writer.writeAll("<td>");
+        if (ctx.repo) |r| {
+            try writer.print("<a href='?r={s}&h={s}'>{s}</a>", .{ r.name, info.branch.name, info.branch.name });
+        } else {
+            try writer.print("<a href='?h={s}'>{s}</a>", .{ info.branch.name, info.branch.name });
+        }
+        try writer.writeAll("</td>");
+
+        // Commit
+        try writer.writeAll("<td>");
+        try shared.writeCommitLink(ctx, writer, &info.oid_str, info.oid_str[0..7]);
+        try writer.writeAll("</td>");
+
+        // Author
+        try writer.writeAll("<td>");
+        try html.htmlEscape(writer, info.author_name);
+        try writer.writeAll("</td>");
+
+        // Age
+        try writer.writeAll("<td class='age' data-timestamp='");
+        try writer.print("{d}", .{info.timestamp});
+        try writer.writeAll("'>");
+        try shared.formatAge(writer, info.timestamp);
+        try writer.writeAll("</td>");
+
+        try writer.writeAll("</tr>\n");
     }
 
     try html.writeTableFooter(writer);
 }
 
 fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
-    try writer.writeAll("<h3>Tags</h3>\n");
+    try writer.writeAll("<h3>Recent Tags</h3>\n");
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");

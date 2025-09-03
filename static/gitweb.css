@@ -72,19 +72,19 @@ table.tabs td a {
     background: transparent;
     color: #24292f;
     text-decoration: none;
+    border-radius: 3px 3px 0 0;
 }
 
 table.tabs td a:hover {
     text-decoration: none;
-    background: #f6f8fa;
-    border-color: #d1d5da;
-    border-bottom-color: #d1d5da;
+    outline: 1px solid #d1d5da;
+    outline-offset: -1px;
 }
 
 table.tabs td a.active {
-    background: white;
+    background: #f6f8fa;  /* Same as branch selector */
     border: 1px solid #d1d5da;
-    border-bottom-color: white;
+    border-bottom-color: #f6f8fa;
     font-weight: 600;
 }
 
@@ -157,6 +157,19 @@ table.list td {
 table.list td.age {
     color: #57606a;
     font-size: 13px;
+}
+
+/* Age color coding */
+.age-recent {
+    color: #333;  /* Black for days and weeks */
+}
+
+.age-months {
+    color: #777;  /* Gray for months */
+}
+
+.age-years {
+    color: #aaa;  /* Light gray for years */
 }
 
 /* Repository list */
@@ -687,15 +700,14 @@ table.ssdiff tr:hover {
     }
     
     table.tabs td a:hover {
-        background: #161b22;
-        border-color: #30363d;
-        border-bottom: none;
+        outline: 1px solid #30363d;
+        outline-offset: -1px;
     }
     
     table.tabs td a.active {
-        background: #0d1117;
+        background: #161b22;  /* Same as branch selector in dark mode */
         border-color: #30363d;
-        border-bottom: 1px solid #0d1117;
+        border-bottom-color: #161b22;
     }
     
     .branch-selector {
@@ -863,6 +875,19 @@ table.ssdiff tr:hover {
     .hl-function { color: #d2a8ff; }
     .hl-type { color: #7ee83f; }
     .hl-variable { color: #ffa657; }
+    
+    /* Age color coding for dark mode - inverted brightness */
+    .age-recent {
+        color: #c9d1d9;  /* Bright for recent (days and weeks) */
+    }
+    
+    .age-months {
+        color: #6e7681;  /* Darker for months */
+    }
+    
+    .age-years {
+        color: #484f58;  /* Darkest for years */
+    }
 }
 
 /* Responsive */

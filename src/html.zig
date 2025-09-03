@@ -142,12 +142,20 @@ fn writeBranchSelector(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype
 
     // Include hidden fields for current parameters
     try writer.print("<input type='hidden' name='r' value='{s}' />\n", .{repo.name});
-    if (ctx.cmd.len > 0) {
+    
+    // For tag page, switching branches should go to summary page
+    if (std.mem.eql(u8, ctx.cmd, "tag")) {
+        try writer.writeAll("<input type='hidden' name='cmd' value='summary' />\n");
+    } else if (ctx.cmd.len > 0) {
         try writer.print("<input type='hidden' name='cmd' value='{s}' />\n", .{ctx.cmd});
     }
 
     // Get current branch from query or use HEAD
-    const current_branch = ctx.query.get("h") orelse "HEAD";
+    // On tag page, h parameter is the tag name, so we don't select it in the branch list
+    const current_branch = if (std.mem.eql(u8, ctx.cmd, "tag")) 
+        "HEAD"  // Default to HEAD when viewing tags
+    else 
+        ctx.query.get("h") orelse "HEAD";
 
     try writer.writeAll("<label for='branch-select'>Branch: </label>\n");
     try writer.writeAll("<select name='h' id='branch-select' onchange='this.form.submit()'>\n");

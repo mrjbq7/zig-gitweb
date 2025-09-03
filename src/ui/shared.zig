@@ -7,9 +7,19 @@ pub fn formatAge(writer: anytype, timestamp: i64) !void {
     const diff = now - timestamp;
 
     if (diff < 0) {
-        try writer.writeAll("in the future");
+        try writer.writeAll("<span class='age-recent'>in the future</span>");
         return;
     }
+
+    // Determine age category for styling
+    const age_class = if (diff < @as(i64, @intFromFloat(gitweb.TM_MONTH))) 
+        "age-recent"  // black for days and weeks
+    else if (diff < gitweb.TM_YEAR) 
+        "age-months"  // gray for months
+    else 
+        "age-years";  // light gray for years
+
+    try writer.print("<span class='{s}'>", .{age_class});
 
     if (diff < gitweb.TM_MIN) {
         try writer.print("{d} seconds ago", .{diff});
@@ -22,13 +32,18 @@ pub fn formatAge(writer: anytype, timestamp: i64) !void {
     } else if (diff < gitweb.TM_WEEK) {
         const days = @divFloor(diff, gitweb.TM_DAY);
         try writer.print("{d} day{s} ago", .{ days, if (days == 1) "" else "s" });
-    } else if (diff < gitweb.TM_YEAR) {
+    } else if (diff < @as(i64, @intFromFloat(gitweb.TM_MONTH))) {
         const weeks = @divFloor(diff, gitweb.TM_WEEK);
         try writer.print("{d} week{s} ago", .{ weeks, if (weeks == 1) "" else "s" });
+    } else if (diff < gitweb.TM_YEAR) {
+        const months = @divFloor(diff, @as(i64, @intFromFloat(gitweb.TM_MONTH)));
+        try writer.print("{d} month{s} ago", .{ months, if (months == 1) "" else "s" });
     } else {
         const years = @divFloor(diff, gitweb.TM_YEAR);
         try writer.print("{d} year{s} ago", .{ years, if (years == 1) "" else "s" });
     }
+    
+    try writer.writeAll("</span>");
 }
 
 pub fn formatBytes(writer: anytype, bytes: u64) !void {
