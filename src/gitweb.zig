@@ -369,14 +369,17 @@ pub const Context = struct {
     }
 
     fn parseQueryString(self: *Context, query_string: []const u8) !void {
+        const html = @import("html.zig");
         // std.debug.print("parseQueryString: input = '{s}'\n", .{query_string});
         var iter = std.mem.tokenizeAny(u8, query_string, "&");
         while (iter.next()) |param| {
             const eq_pos = std.mem.indexOf(u8, param, "=");
             if (eq_pos) |pos| {
                 const key = param[0..pos];
-                const value = param[pos + 1 ..];
-                // std.debug.print("parseQueryString: setting key='{s}', value='{s}'\n", .{key, value});
+                const encoded_value = param[pos + 1 ..];
+                // URL decode the value
+                const value = try html.urlDecode(self.allocator, encoded_value);
+                // std.debug.print("parseQueryString: setting key='{s}', value='{s}' (decoded from '{s}')\n", .{key, value, encoded_value});
                 try self.query.set(key, value);
             }
         }

@@ -285,6 +285,39 @@ pub fn urlEncodePath(writer: anytype, text: []const u8) !void {
     }
 }
 
+pub fn urlDecode(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
+    var result = std.ArrayList(u8){
+        .items = &.{},
+        .capacity = 0,
+    };
+    defer result.deinit(allocator);
+    
+    var i: usize = 0;
+    while (i < text.len) {
+        if (text[i] == '%' and i + 2 < text.len) {
+            // Try to parse the next two characters as hex
+            const hex_str = text[i + 1 .. i + 3];
+            if (std.fmt.parseInt(u8, hex_str, 16)) |byte| {
+                try result.append(allocator, byte);
+                i += 3;
+            } else |_| {
+                // Not valid hex, just append the % character
+                try result.append(allocator, text[i]);
+                i += 1;
+            }
+        } else if (text[i] == '+') {
+            // + is encoded space in query strings
+            try result.append(allocator, ' ');
+            i += 1;
+        } else {
+            try result.append(allocator, text[i]);
+            i += 1;
+        }
+    }
+    
+    return result.toOwnedSlice(allocator);
+}
+
 pub fn writeLink(writer: anytype, url: []const u8, text: []const u8) !void {
     try writer.print("<a href='{s}'>", .{url});
     try htmlEscape(writer, text);
