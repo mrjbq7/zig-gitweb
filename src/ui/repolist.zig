@@ -6,8 +6,14 @@ const git = @import("../git.zig");
 
 pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
     try writer.writeAll("<div class='repolist'>\n");
-    try writer.print("<h2>{s}</h2>\n", .{ctx.cfg.root_title});
-    try writer.print("<p>{s}</p>\n", .{ctx.cfg.root_desc});
+
+    // Structure to hold repository information
+    const RepoInfo = struct {
+        name: []const u8,
+        description: []const u8,
+        owner: []const u8,
+        idle: []const u8,
+    };
 
     // Table headers
     try writer.writeAll("<table class='list nowrap'>\n");
@@ -30,8 +36,17 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
         };
         defer dir.close();
 
+        // Collect repositories
+        var repos: std.ArrayList(RepoInfo) = .empty;
+        defer {
+            for (repos.items) |repo| {
+                ctx.allocator.free(repo.name);
+                if (repo.description.len > 0) ctx.allocator.free(repo.description);
+            }
+            repos.deinit(ctx.allocator);
+        }
+
         var iter = dir.iterate();
-        var repo_count: usize = 0;
 
         while (try iter.next()) |entry| {
             // Check if this is a git repository (either bare or .git directory)
@@ -53,8 +68,6 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
             };
 
             if (is_git_repo) {
-                repo_count += 1;
-
                 // Extract repository name (remove .git suffix if present)
                 var repo_name = entry.name;
                 if (std.mem.endsWith(u8, repo_name, ".git")) {
@@ -92,36 +105,50 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
                     ctx.allocator.free(content);
                     break :blk desc_copy;
                 };
-                defer {
-                    if (description.len > 0) ctx.allocator.free(description);
-                }
 
-                // Write table row
-                try writer.writeAll("<tr>");
-
-                // Name column with link
-                try writer.writeAll("<td>");
-                try writer.print("<a href='?r={s}'>{s}</a>", .{ repo_name, repo_name });
-                try writer.writeAll("</td>");
-
-                // Description column
-                try writer.writeAll("<td>");
-                if (description.len > 0) {
-                    try html.htmlEscape(writer, description);
-                }
-                try writer.writeAll("</td>");
-
-                // Owner column (TODO: get from config or git config)
-                try writer.writeAll("<td></td>");
-
-                // Idle column (TODO: get last commit time)
-                try writer.writeAll("<td></td>");
-
-                try writer.writeAll("</tr>\n");
+                try repos.append(ctx.allocator, RepoInfo{
+                    .name = try ctx.allocator.dupe(u8, repo_name),
+                    .description = description,
+                    .owner = "",
+                    .idle = "",
+                });
             }
         }
 
-        if (repo_count == 0) {
+        // Sort repositories by name
+        std.sort.pdq(RepoInfo, repos.items, {}, struct {
+            fn lessThan(_: void, a: RepoInfo, b: RepoInfo) bool {
+                return std.mem.lessThan(u8, a.name, b.name);
+            }
+        }.lessThan);
+
+        // Display sorted repositories
+        for (repos.items) |repo| {
+            // Write table row
+            try writer.writeAll("<tr>");
+
+            // Name column with link
+            try writer.writeAll("<td>");
+            try writer.print("<a href='?r={s}'>{s}</a>", .{ repo.name, repo.name });
+            try writer.writeAll("</td>");
+
+            // Description column
+            try writer.writeAll("<td>");
+            if (repo.description.len > 0) {
+                try html.htmlEscape(writer, repo.description);
+            }
+            try writer.writeAll("</td>");
+
+            // Owner column (TODO: get from config or git config)
+            try writer.writeAll("<td></td>");
+
+            // Idle column (TODO: get last commit time)
+            try writer.writeAll("<td></td>");
+
+            try writer.writeAll("</tr>\n");
+        }
+
+        if (repos.items.len == 0) {
             try writer.writeAll("<tr><td colspan='4'>No repositories found</td></tr>\n");
         }
     } else {
