@@ -9,14 +9,8 @@ pub fn summary(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
 
     try writer.writeAll("<div class='summary'>\n");
-    try writer.print("<h2>{s}</h2>\n", .{repo.name});
 
-    if (repo.desc.len > 0) {
-        try writer.writeAll("<div class='desc'>");
-        try html.htmlEscape(writer, repo.desc);
-        try writer.writeAll("</div>\n");
-    }
-
+    // Show additional repository info if available
     if (repo.homepage) |homepage| {
         try writer.writeAll("<div class='homepage'>Homepage: ");
         try html.writeLink(writer, homepage, homepage);
@@ -48,8 +42,8 @@ pub fn summary(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
-    try writer.writeAll("<h3>Recent Commits</h3>\n");
-    try writer.writeAll("<div class='summary-commits'>\n");
+    try writer.writeAll("<h2>Recent Commits</h2>\n");
+    try writer.writeAll("<div class='log-list'>\n");
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
@@ -184,15 +178,15 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
             .author_name = std.mem.span(author_sig.name),
             .timestamp = commit_time,
             .refs = refs,
-        }, "summary-commit");
+        }, "log");
     }
 
-    try writer.writeAll("</div>\n"); // summary-commits
+    try writer.writeAll("</div>\n"); // log-list
 }
 
 fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
-    try writer.writeAll("<h3>Branches</h3>\n");
-    try writer.writeAll("<div class='summary-branches'>\n");
+    try writer.writeAll("<h2>Recent Branches</h2>\n");
+    try writer.writeAll("<div class='refs-list'>\n");
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
@@ -281,15 +275,15 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
             .author_name = info.author_name,
             .message = info.message,
             .timestamp = info.timestamp,
-        }, "summary-branch");
+        }, "refs");
     }
 
-    try writer.writeAll("</div>\n"); // summary-branches
+    try writer.writeAll("</div>\n"); // refs-list
 }
 
 fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
-    try writer.writeAll("<h3>Tags</h3>\n");
-    try writer.writeAll("<div class='summary-tags'>\n");
+    try writer.writeAll("<h2>Recent Tags</h2>\n");
+    try writer.writeAll("<div class='refs-list'>\n");
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
@@ -376,7 +370,7 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
             .author_name = info.author_name,
             .message = info.message,
             .timestamp = info.timestamp,
-        }, "summary-tag");
+        }, "refs");
     }
 }
 

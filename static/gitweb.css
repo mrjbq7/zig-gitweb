@@ -158,14 +158,13 @@ table.list td {
 
 table.list td.age {
     color: #57606a;
-    font-size: 0.9375rem;
+    font-size: 1rem;
 }
 
 /* Tree List - Compact Single-Line Layout */
 .tree-list {
     margin: 16px 0;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 0.9375rem;
+    font-size: 1rem;
 }
 
 .tree-item {
@@ -193,6 +192,7 @@ table.list td.age {
     color: #57606a;
     white-space: nowrap;
     min-width: 90px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 .tree-name {
@@ -218,7 +218,7 @@ table.list td.age {
 .tree-actions {
     color: #57606a;
     white-space: nowrap;
-    font-size: 1rem;
+    font-size: 0.95rem;
 }
 
 .tree-actions a {
@@ -227,9 +227,6 @@ table.list td.age {
 
 /* Mobile responsive adjustments */
 @media (max-width: 768px) {
-    .tree-list {
-        font-size: 1rem;
-    }
     
     .tree-item {
         padding: 8px;
@@ -248,7 +245,8 @@ table.list td.age {
 
 /* Age color coding */
 .age-recent {
-    color: #333;  /* Black for days and weeks */
+    color: #1a7f37;  /* Green for days and weeks */
+    font-weight: 500;
 }
 
 .age-months {
@@ -274,11 +272,6 @@ div.summary h2 {
     margin: 24px 0 8px 0;
 }
 
-div.summary h3 {
-    margin: 20px 0 12px 0;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #e1e4e8;
-}
 
 div.summary div.desc {
     margin: 12px 0;
@@ -309,7 +302,7 @@ div.diff {
 
 pre.diff {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 1rem;
+    font-size: 0.875rem;
     background: #f6f8fa;
     border: 1px solid #d1d5da;
     border-radius: 6px;
@@ -341,7 +334,7 @@ div.diff-filelist {
 div.diff-filelist table {
     width: 100%;
     font-family: monospace;
-    font-size: 1rem;
+    font-size: 0.875rem;
 }
 
 div.diff-filelist td {
@@ -360,7 +353,7 @@ div.diff-file-header {
     background: #f1f8ff;
     border-bottom: 1px solid #d1d5da;
     padding: 10px 16px;
-    font-size: 1rem;
+    font-size: 0.875rem;
     font-weight: 600;
 }
 
@@ -380,20 +373,28 @@ td.mode {
     font-size: 0.9375rem;
 }
 
-div.path {
-    margin: 12px 0;
-    padding: 8px 12px;
-    background: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 0.9375rem;
+h2.path {
+    margin: 16px 0;
+    padding: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #24292f;
 }
 
 /* Blob view */
+.blob-commit-info {
+    background: #fff8dc;
+    border: 1px solid #ffe4b5;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 10px 0;
+    font-size: 0.9rem;
+    color: #57606a;
+}
+
 pre.blob {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 1rem;
+    font-size: 0.875rem;
     background: #f6f8fa;
     border: 1px solid #d1d5da;
     border-radius: 6px;
@@ -413,6 +414,17 @@ pre.blob {
     user-select: none;
 }
 
+table.blob-content td.linenumber {
+    background: #f6f8fa;
+    border-right: 1px solid #d1d5da;
+    color: #57606a;
+    text-align: right;
+    padding: 0 12px;
+    user-select: none;
+    width: 1%;
+    white-space: nowrap;
+}
+
 /* Blame view */
 table.blame {
     width: 100%;
@@ -422,7 +434,7 @@ table.blame {
 table.blame td {
     padding: 2px 8px;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 1rem;
+    font-size: 0.875rem;
     vertical-align: top;
 }
 
@@ -438,6 +450,8 @@ table.blame td.author {
     border-right: 1px solid #d1d5da;
     color: #57606a;
     white-space: nowrap;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 0.875rem;
 }
 
 table.blame td.date {
@@ -445,6 +459,8 @@ table.blame td.date {
     border-right: 1px solid #d1d5da;
     color: #57606a;
     white-space: nowrap;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 0.875rem;
 }
 
 table.blame td.linenumber {
@@ -466,7 +482,7 @@ table.blame td.code {
 }
 
 .log-item {
-    padding: 6px 16px 8px 16px;
+    padding: 10px 16px;
     border-bottom: 1px solid #e1e4e8;
     transition: background-color 0.2s;
 }
@@ -476,7 +492,7 @@ table.blame td.code {
 }
 
 .log-message {
-    font-size: 1rem;
+    font-size: 1.05rem;
     line-height: 1.4;
     color: #24292e;
     margin-bottom: 4px;
@@ -487,13 +503,10 @@ table.blame td.code {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 0.9375rem;
+    font-size: 1rem;
     color: #57606a;
 }
 
-.log-hash {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-}
 
 .log-hash a {
     color: #0969da;
@@ -509,7 +522,7 @@ table.blame td.code {
 
 .log-stats {
     white-space: nowrap;
-    font-size: 0.9375rem;
+    font-size: 1rem;
     color: #57606a;
 }
 
@@ -524,13 +537,13 @@ table.blame td.code {
 /* Mobile responsive */
 @media (max-width: 768px) {
     .log-item {
-        padding: 6px 12px 8px 12px;
+        padding: 8px 12px;
     }
     
     .log-meta {
         flex-wrap: wrap;
         gap: 8px;
-        font-size: 1rem;
+        font-size: 0.875rem;
     }
     
     .log-author {
@@ -545,10 +558,7 @@ div.log h2 {
 
 div.log-controls {
     margin-bottom: 8px;
-    padding: 4px 12px;
-    background: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px;
+    padding: 4px 0;
 }
 
 div.log-controls a {
@@ -567,7 +577,7 @@ pre.commit-msg {
 }
 
 td.log-stats {
-    font-size: 0.9375rem;
+    font-size: 1rem;
     white-space: nowrap;
     color: #57606a;
 }
@@ -584,7 +594,7 @@ td.log-stats .deletions {
 .ref-branch, .ref-tag, span.ref-branch, span.ref-tag {
     display: inline-block;
     padding: 2px 6px;
-    font-size: 1rem;
+    font-size: 0.875rem;
     font-weight: 500;
     border-radius: 3px;
     margin-right: 4px;
@@ -631,7 +641,7 @@ td.log-stats .deletions {
 }
 
 .refs-name {
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 500;
 }
 
@@ -641,7 +651,7 @@ td.log-stats .deletions {
 
 .refs-remote {
     color: #57606a;
-    font-size: 1rem;
+    font-size: 0.875rem;
 }
 
 .refs-head {
@@ -667,7 +677,7 @@ td.log-stats .deletions {
 }
 
 .refs-message {
-    font-size: 0.9375rem;
+    font-size: 1.05rem;
     color: #586069;
     margin-bottom: 4px;
     overflow: hidden;
@@ -676,7 +686,7 @@ td.log-stats .deletions {
 }
 
 .refs-download {
-    font-size: 1rem;
+    font-size: 0.875rem;
 }
 
 .refs-meta {
@@ -686,9 +696,6 @@ td.log-stats .deletions {
     color: #57606a;
 }
 
-.refs-hash {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-}
 
 .refs-hash a {
     color: #0969da;
@@ -730,161 +737,6 @@ td.log-stats .deletions {
     }
 }
 
-/* Unified Card Styles for Summary and Refs pages */
-/* These styles support both "summary-branch", "summary-tag", "refs" prefixes */
-.summary-branches, .summary-tags {
-    margin: 16px 0;
-}
-
-.summary-branch-item, .summary-tag-item {
-    padding: 10px 16px;
-    border-bottom: 1px solid #e1e4e8;
-    transition: background-color 0.2s;
-}
-
-.summary-branch-item:hover, .summary-tag-item:hover {
-    background-color: #f6f8fa;
-}
-
-.summary-branch-item.summary-branch-current {
-    background-color: #fff8f0;
-}
-
-.summary-branch-top, .summary-tag-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-}
-
-.summary-branch-name, .summary-tag-name {
-    font-size: 1rem;
-    font-weight: 500;
-}
-
-.summary-branch-name a, .summary-tag-name a {
-    color: #24292e;
-}
-
-.summary-branch-head {
-    display: inline-block;
-    padding: 2px 6px;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    background: #fef2c0;
-    color: #735c0f;
-    border-radius: 3px;
-    margin-left: 4px;
-}
-
-.summary-branch-message, .summary-tag-message {
-    font-size: 0.9375rem;
-    color: #586069;
-    margin-bottom: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.summary-tag-download {
-    font-size: 1rem;
-}
-
-.summary-tag-download a {
-    color: #0969da;
-}
-
-.summary-branch-meta, .summary-tag-meta {
-    display: flex;
-    gap: 12px;
-    font-size: 1rem;
-    color: #57606a;
-}
-
-.summary-branch-hash, .summary-tag-hash {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-}
-
-.summary-branch-hash a, .summary-tag-hash a {
-    color: #0969da;
-}
-
-.summary-branch-author, .summary-tag-author {
-    font-weight: 500;
-}
-
-.summary-branch-age, .summary-tag-age {
-    white-space: nowrap;
-}
-
-/* Summary Page - Commits */
-.summary-commits {
-    margin: 16px 0;
-}
-
-.summary-commit-item {
-    padding: 8px 16px;
-    border-bottom: 1px solid #e1e4e8;
-    transition: background-color 0.2s;
-}
-
-.summary-commit-item:hover {
-    background-color: #f6f8fa;
-}
-
-.summary-commit-message {
-    font-size: 1rem;
-    line-height: 1.4;
-    color: #24292e;
-    margin-bottom: 4px;
-}
-
-.summary-commit-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 0.9375rem;
-    color: #57606a;
-}
-
-.summary-commit-hash {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-}
-
-.summary-commit-hash a {
-    color: #0969da;
-}
-
-.summary-commit-author {
-    font-weight: 500;
-}
-
-.summary-commit-age {
-    white-space: nowrap;
-}
-
-/* Mobile responsive for summary cards */
-@media (max-width: 768px) {
-    .summary-branch-item, .summary-tag-item, .summary-commit-item {
-        padding: 8px 12px;
-    }
-    
-    .summary-branch-top, .summary-tag-top {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-    }
-    
-    .summary-tag-download {
-        margin-top: 4px;
-    }
-    
-    .summary-branch-meta, .summary-tag-meta, .summary-commit-meta {
-        flex-wrap: wrap;
-        gap: 8px;
-        font-size: 1rem;
-    }
-}
 
 /* Repository list (index page) */
 .repolist {
@@ -910,7 +762,7 @@ td.log-stats .deletions {
 }
 
 .repo-name {
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 600;
     margin-bottom: 4px;
 }
@@ -932,7 +784,7 @@ td.log-stats .deletions {
     display: flex;
     align-items: center;
     gap: 16px;
-    font-size: 0.9375rem;
+    font-size: 1rem;
     color: #57606a;
 }
 
@@ -986,7 +838,7 @@ div.footer {
     padding: 20px 16px;
     border-top: 1px solid #d1d5da;
     color: #57606a;
-    font-size: 1rem;
+    font-size: 0.875rem;
     text-align: center;
 }
 
@@ -995,7 +847,7 @@ input[type="text"], input[type="search"], select {
     padding: 5px 12px;
     border: 1px solid #d1d5da;
     border-radius: 6px;
-    font-size: 1rem;
+    font-size: 0.875rem;
     background: white;
 }
 
@@ -1011,7 +863,7 @@ input[type="submit"], button {
     color: white;
     border: 1px solid rgba(27, 31, 35, 0.15);
     border-radius: 6px;
-    font-size: 1rem;
+    font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
 }
@@ -1138,7 +990,7 @@ div.search-input input[type="text"] {
     padding: 8px 12px;
     border: 1px solid #d1d5da;
     border-radius: 4px;
-    font-size: 1rem;
+    font-size: 0.875rem;
 }
 
 div.search-input select {
@@ -1146,7 +998,7 @@ div.search-input select {
     border: 1px solid #d1d5da;
     border-radius: 4px;
     background: white;
-    font-size: 1rem;
+    font-size: 0.875rem;
 }
 
 div.search-input input[type="submit"] {
@@ -1156,7 +1008,7 @@ div.search-input input[type="submit"] {
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 1rem;
+    font-size: 0.875rem;
 }
 
 div.search-input input[type="submit"]:hover {
@@ -1189,7 +1041,7 @@ table.search-results tr:hover {
 
 table.search-results code {
     font-family: 'SFMono-Regular', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 1rem;
+    font-size: 0.875rem;
     background: #f6f8fa;
     padding: 2px 4px;
     border-radius: 3px;
@@ -1213,7 +1065,7 @@ table.search-results code {
     bottom: 125%;
     left: 50%;
     margin-left: -60px;
-    font-size: 1rem;
+    font-size: 0.875rem;
     white-space: nowrap;
 }
 
@@ -1245,7 +1097,7 @@ table.ssdiff {
 table.ssdiff td {
     padding: 2px 8px;
     font-family: 'SFMono-Regular', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 1rem;
+    font-size: 0.875rem;
     line-height: 1.4;
     vertical-align: top;
     white-space: pre;
@@ -1371,9 +1223,6 @@ table.ssdiff tr:hover {
         color: #8b949e;
     }
     
-    div.summary h3 {
-        border-bottom-color: #21262d;
-    }
     
     div.summary div.desc {
         color: #8b949e;
@@ -1383,6 +1232,12 @@ table.ssdiff tr:hover {
         color: #8b949e;
     }
     
+    .blob-commit-info {
+        background: #2d2a1f;
+        border-color: #484532;
+        color: #8b949e;
+    }
+
     pre.diff, pre.blob {
         background: #161b22;
         border-color: #30363d;
@@ -1403,15 +1258,20 @@ table.ssdiff tr:hover {
         color: #58a6ff;
     }
     
-    div.path {
-        background: #161b22;
-        border-color: #30363d;
+    h2.path {
+        color: #e6edf3;
     }
     
     .linenumbers {
         color: #8b949e;
         background: #161b22;
         border-right-color: #30363d;
+    }
+
+    table.blob-content td.linenumber {
+        background: #161b22;
+        border-right-color: #30363d;
+        color: #8b949e;
     }
     
     table.blame td.commit {
@@ -1428,10 +1288,6 @@ table.ssdiff tr:hover {
         color: #8b949e;
     }
     
-    div.log-controls {
-        background: #161b22;
-        border-color: #30363d;
-    }
     
     td.log-stats .insertions {
         color: #3fb950;
@@ -1543,7 +1399,8 @@ table.ssdiff tr:hover {
     
     /* Age color coding for dark mode - inverted brightness */
     .age-recent {
-        color: #c9d1d9;  /* Bright for recent (days and weeks) */
+        color: #3fb950;  /* Bright green for recent (days and weeks) */
+        font-weight: 500;
     }
     
     .age-months {
@@ -1563,7 +1420,7 @@ table.ssdiff tr:hover {
     }
     
     table.list {
-        font-size: 1rem;
+        font-size: 0.875rem;
     }
     
     table.list th, table.list td {

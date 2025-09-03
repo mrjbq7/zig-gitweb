@@ -69,6 +69,24 @@ pub fn blob(ctx: *gitweb.Context, writer: anytype) !void {
     };
     defer commit.free();
 
+    // Show commit info if viewing at a specific commit
+    if (ctx.query.get("id")) |_| {
+        const commit_oid_str = try git.oidToString(commit.id());
+        const commit_time = commit.time();
+        const commit_summary = commit.summary();
+        const author = commit.author();
+
+        try writer.writeAll("<div class='blob-commit-info'>");
+        try writer.print("Viewing at commit <a href='?r={s}&cmd=commit&id={s}'>{s}</a>", .{ repo.name, commit_oid_str, commit_oid_str[0..7] });
+        try writer.writeAll(" — ");
+        try html.htmlEscape(writer, commit_summary);
+        try writer.writeAll(" (");
+        try html.htmlEscape(writer, std.mem.span(author.name));
+        try writer.writeAll(", ");
+        try shared.formatAge(writer, commit_time);
+        try writer.writeAll(")</div>\n");
+    }
+
     // Get the tree
     var tree = try commit.tree();
     defer tree.free();
@@ -176,6 +194,24 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
 
     try writer.writeAll(" | ");
 
+    // History link
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=log");
+    // Preserve commit ID or branch
+    if (ctx.query.get("id")) |id| {
+        try writer.print("&id={s}", .{id});
+    } else if (ctx.query.get("h")) |h| {
+        try writer.print("&h={s}", .{h});
+    }
+    try writer.writeAll("&path=");
+    try html.urlEncodePath(writer, path);
+    try writer.writeAll("'>History</a>");
+
+    try writer.writeAll(" | ");
+
     // Blame link
     try writer.writeAll("<a href='?");
     if (ctx.repo) |r| {
@@ -247,6 +283,21 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.
     try writer.print("' download>Download ({s}, ", .{mime_type});
     try parsing.formatFileSize(size, writer);
     try writer.writeAll(")</a>");
+
+    // History link
+    try writer.writeAll(" | <a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=log");
+    if (ctx.query.get("id")) |id| {
+        try writer.print("&id={s}", .{id});
+    } else if (ctx.query.get("h")) |h| {
+        try writer.print("&h={s}", .{h});
+    }
+    try writer.writeAll("&path=");
+    try html.urlEncodePath(writer, path);
+    try writer.writeAll("'>History</a>");
 
     // Hex dump link
     try writer.writeAll(" | <a href='?");

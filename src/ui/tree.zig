@@ -256,7 +256,6 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
 
         // Actions
         try writer.writeAll("<span class='tree-actions'>");
-        try writer.writeAll("[");
 
         // Log link
         try writer.writeAll("<a href='?");
@@ -274,25 +273,7 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         try html.urlEncodePath(writer, full_path);
         try writer.writeAll("'>log</a>");
 
-        // Blame link for files
-        if (!is_dir) {
-            try writer.writeAll(" | ");
-            try writer.writeAll("<a href='?");
-            if (ctx.repo) |r| {
-                try writer.print("r={s}&", .{r.name});
-            }
-            try writer.writeAll("cmd=blame");
-            if (ctx.query.get("id")) |id| {
-                try writer.print("&id={s}", .{id});
-            } else if (ctx.query.get("h")) |branch| {
-                try writer.print("&h={s}", .{branch});
-            }
-            try writer.writeAll("&path=");
-            try html.urlEncodePath(writer, full_path);
-            try writer.writeAll("'>blame</a>");
-        }
-
-        try writer.writeAll("]</span>");
+        try writer.writeAll("</span>");
         try writer.writeAll("</div>\n"); // tree-item
     }
 

@@ -324,8 +324,7 @@ pub fn writeCommitItem(ctx: *gitweb.Context, writer: anytype, info: CommitItemIn
 }
 
 pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) !void {
-    try writer.writeAll("<div class='path'>");
-    try writer.writeAll("path: ");
+    try writer.writeAll("<h2 class='path'>");
 
     // Add root link
     try writer.writeAll("<a href='?");
@@ -376,5 +375,5 @@ pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) 
         }
     }
 
-    try writer.writeAll("</div>\n");
+    try writer.writeAll("</h2>\n");
 }
