@@ -53,21 +53,21 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
     if (is_annotated and tag_obj != null) {
         // Annotated tag - show tag information
         try writer.print("<h2>Tag {s}</h2>\n", .{tag_name});
-        
+
         try writer.writeAll("<table class='tag-info'>\n");
-        
+
         // Tag object ID
         const tag_oid_str = try git.oidToString(oid);
         try writer.writeAll("<tr><th>Tag ID</th><td>");
         try writer.print("{s}", .{tag_oid_str});
         try writer.writeAll("</td></tr>\n");
-        
+
         // Target commit
         const target_oid = c.git_tag_target_id(tag_obj);
         const target_oid_str = try git.oidToString(target_oid);
         try writer.writeAll("<tr><th>Tagged Commit</th><td>");
         try shared.writeCommitLink(ctx, writer, &target_oid_str, target_oid_str[0..7]);
-        
+
         // Get commit summary
         var commit = try git_repo.lookupCommit(target_oid);
         defer commit.free();
@@ -78,7 +78,7 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
             try writer.writeAll(")");
         }
         try writer.writeAll("</td></tr>\n");
-        
+
         // Tagger
         const tagger = c.git_tag_tagger(tag_obj);
         if (tagger != null) {
@@ -90,7 +90,7 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
                 try writer.writeAll("&gt;");
             }
             try writer.writeAll("</td></tr>\n");
-            
+
             // Tag date
             try writer.writeAll("<tr><th>Tag Date</th><td>");
             try parsing.formatTimestamp(tagger.*.when.time, writer);
@@ -98,7 +98,7 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
             try writer.print(" {s}", .{tz_buf[0..5]});
             try writer.writeAll("</td></tr>\n");
         }
-        
+
         // Download links
         try writer.writeAll("<tr><th>Download</th><td>");
         if (ctx.repo) |r| {
@@ -109,9 +109,9 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
             try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{tag_name});
         }
         try writer.writeAll("</td></tr>\n");
-        
+
         try writer.writeAll("</table>\n");
-        
+
         // Tag message
         const message = c.git_tag_message(tag_obj);
         if (message != null and std.mem.span(message).len > 0) {
@@ -122,22 +122,21 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
             try writer.writeAll("</pre>\n");
             try writer.writeAll("</div>\n");
         }
-        
+
         // Show the tagged commit details
         try writer.writeAll("<h3>Tagged Commit</h3>\n");
         try showCommitInfo(ctx, &git_repo, &commit, writer);
-        
     } else {
         // Lightweight tag - just show the commit it points to
         try writer.print("<h2>Tag {s} (lightweight)</h2>\n", .{tag_name});
-        
+
         try writer.writeAll("<table class='tag-info'>\n");
-        
+
         // Target commit
         const commit_oid_str = try git.oidToString(oid);
         try writer.writeAll("<tr><th>Points to</th><td>");
         try shared.writeCommitLink(ctx, writer, &commit_oid_str, commit_oid_str[0..7]);
-        
+
         // Get commit summary
         var commit = try git_repo.lookupCommit(oid);
         defer commit.free();
@@ -148,7 +147,7 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
             try writer.writeAll(")");
         }
         try writer.writeAll("</td></tr>\n");
-        
+
         // Download links
         try writer.writeAll("<tr><th>Download</th><td>");
         if (ctx.repo) |r| {
@@ -159,9 +158,9 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
             try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{tag_name});
         }
         try writer.writeAll("</td></tr>\n");
-        
+
         try writer.writeAll("</table>\n");
-        
+
         // Show the commit details
         try writer.writeAll("<h3>Commit Details</h3>\n");
         try showCommitInfo(ctx, &git_repo, &commit, writer);
@@ -173,14 +172,14 @@ pub fn tag(ctx: *gitweb.Context, writer: anytype) !void {
 fn showCommitInfo(ctx: *gitweb.Context, repo: *git.Repository, commit: *git.Commit, writer: anytype) !void {
     _ = repo;
     const oid_str = try git.oidToString(commit.id());
-    
+
     try writer.writeAll("<table class='commit-info'>\n");
-    
+
     // Commit ID
     try writer.writeAll("<tr><th>Commit</th><td>");
     try shared.writeCommitLink(ctx, writer, &oid_str, &oid_str);
     try writer.writeAll("</td></tr>\n");
-    
+
     // Author
     const author = commit.author();
     try writer.writeAll("<tr><th>Author</th><td>");
@@ -191,22 +190,22 @@ fn showCommitInfo(ctx: *gitweb.Context, repo: *git.Repository, commit: *git.Comm
         try writer.writeAll("&gt;");
     }
     try writer.writeAll("</td></tr>\n");
-    
+
     // Author date
     try writer.writeAll("<tr><th>Date</th><td>");
     try parsing.formatTimestamp(author.when.time, writer);
     const tz_buf = formatTimezone(author.when.offset);
     try writer.print(" {s}", .{tz_buf[0..5]});
     try writer.writeAll("</td></tr>\n");
-    
+
     // Parent commits
     const parent_count = commit.parentCount();
     for (0..parent_count) |i| {
         var parent = try commit.parent(@intCast(i));
         defer parent.free();
-        
+
         const parent_oid_str = try git.oidToString(parent.id());
-        
+
         try writer.writeAll("<tr><th>");
         if (i == 0) {
             try writer.writeAll("Parent");
@@ -215,7 +214,7 @@ fn showCommitInfo(ctx: *gitweb.Context, repo: *git.Repository, commit: *git.Comm
         }
         try writer.writeAll("</th><td>");
         try shared.writeCommitLink(ctx, writer, &parent_oid_str, parent_oid_str[0..7]);
-        
+
         // Show parent's summary
         const parent_summary = parent.summary();
         if (parent_summary.len > 0) {
@@ -225,27 +224,27 @@ fn showCommitInfo(ctx: *gitweb.Context, repo: *git.Repository, commit: *git.Comm
         }
         try writer.writeAll("</td></tr>\n");
     }
-    
+
     // Tree
     var tree = try commit.tree();
     defer tree.free();
     const tree_oid_str = try git.oidToString(tree.id());
-    
+
     try writer.writeAll("<tr><th>Tree</th><td>");
     try shared.writeTreeLink(ctx, writer, &oid_str, null, tree_oid_str[0..7]);
     try writer.writeAll("</td></tr>\n");
-    
+
     try writer.writeAll("</table>\n");
-    
+
     // Commit message
     try writer.writeAll("<div class='commit-message'>\n");
     const message = commit.message();
     const parsed_msg = parsing.parseCommitMessage(message);
-    
+
     try writer.writeAll("<h4>");
     try html.htmlEscape(writer, parsed_msg.subject);
     try writer.writeAll("</h4>\n");
-    
+
     if (parsed_msg.body.len > 0) {
         try writer.writeAll("<pre>");
         try html.htmlEscape(writer, parsed_msg.body);

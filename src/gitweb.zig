@@ -332,8 +332,37 @@ pub const Context = struct {
         self.repo.?.path = repo_path;
         // std.debug.print("Repository path set to: {s}\n", .{repo_path});
 
-        // Set some defaults
-        self.repo.?.desc = try self.allocator.dupe(u8, "");
+        // Load repository description
+        const desc_path = try std.fmt.allocPrint(self.allocator, "{s}/description", .{repo_path});
+        defer self.allocator.free(desc_path);
+
+        const desc = blk: {
+            const file = std.fs.openFileAbsolute(desc_path, .{}) catch {
+                break :blk "";
+            };
+            defer file.close();
+
+            const content = file.readToEndAlloc(self.allocator, 1024) catch {
+                break :blk "";
+            };
+
+            // Trim whitespace and check if it's the default description
+            const trimmed = std.mem.trim(u8, content, " \t\r\n");
+            if (std.mem.startsWith(u8, trimmed, "Unnamed repository")) {
+                self.allocator.free(content);
+                break :blk "";
+            }
+
+            // Return a duplicate of the trimmed string
+            const desc_copy = self.allocator.dupe(u8, trimmed) catch {
+                self.allocator.free(content);
+                break :blk "";
+            };
+            self.allocator.free(content);
+            break :blk desc_copy;
+        };
+
+        self.repo.?.desc = desc;
         self.repo.?.max_stats = .year; // Enable stats tab with year view
     }
 

@@ -70,22 +70,31 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
 
                 const description = blk: {
                     const file = std.fs.openFileAbsolute(desc_path, .{}) catch {
-                        break :blk "Unnamed repository; edit this file 'description' to name the repository.";
+                        break :blk "";
                     };
                     defer file.close();
 
                     const content = file.readToEndAlloc(ctx.allocator, 1024) catch {
-                        break :blk "Unnamed repository; edit this file 'description' to name the repository.";
+                        break :blk "";
                     };
-                    defer ctx.allocator.free(content);
 
                     // Trim whitespace and check if it's the default description
                     const trimmed = std.mem.trim(u8, content, " \t\r\n");
                     if (std.mem.startsWith(u8, trimmed, "Unnamed repository")) {
+                        ctx.allocator.free(content);
                         break :blk "";
                     }
-                    break :blk trimmed;
+                    // Return a duplicate of the trimmed string so it persists
+                    const desc_copy = ctx.allocator.dupe(u8, trimmed) catch {
+                        ctx.allocator.free(content);
+                        break :blk "";
+                    };
+                    ctx.allocator.free(content);
+                    break :blk desc_copy;
                 };
+                defer {
+                    if (description.len > 0) ctx.allocator.free(description);
+                }
 
                 // Write table row
                 try writer.writeAll("<tr>");

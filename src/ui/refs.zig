@@ -36,6 +36,28 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
     const headers = [_][]const u8{ "Branch", "Commit", "Author", "Message", "Age" };
     try html.writeTableHeader(writer, &headers);
 
+    // Structure to hold branch information
+    const BranchInfo = struct {
+        name: []const u8,
+        branch_type: c.git_branch_t,
+        is_head: bool,
+        oid_str: [40]u8,
+        author_name: []const u8,
+        message: []const u8,
+        timestamp: i64,
+    };
+
+    // Collect all branches
+    var branches: std.ArrayList(BranchInfo) = .empty;
+    defer {
+        for (branches.items) |branch| {
+            ctx.allocator.free(branch.name);
+            ctx.allocator.free(branch.author_name);
+            ctx.allocator.free(branch.message);
+        }
+        branches.deinit(ctx.allocator);
+    }
+
     // Get all branches
     var branch_list: ?*c.git_branch_iterator = null;
     if (c.git_branch_iterator_new(&branch_list, @ptrCast(repo.repo), c.GIT_BRANCH_ALL) != 0) {
@@ -48,7 +70,11 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
     var ref: ?*c.git_reference = null;
     var branch_type: c.git_branch_t = undefined;
 
-    var count: usize = 0;
+    // Get HEAD ref for comparison
+    var head_ref: ?*c.git_reference = null;
+    const has_head = c.git_repository_head(&head_ref, @ptrCast(repo.repo)) == 0;
+    defer if (has_head) c.git_reference_free(head_ref);
+
     while (c.git_branch_next(&ref, &branch_type, branch_list) == 0) {
         defer c.git_reference_free(ref);
 
@@ -65,58 +91,85 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
         const author = commit.author();
         const commit_time = commit.time();
 
-        try html.writeTableRow(writer, if (count % 2 == 0) "even" else null);
+        // Check if this is the current branch
+        const is_head = has_head and branch_type == c.GIT_BRANCH_LOCAL and
+            c.git_reference_cmp(ref, head_ref) == 0;
+
+        var oid_buf: [40]u8 = undefined;
+        @memcpy(&oid_buf, oid_str[0..40]);
+
+        try branches.append(ctx.allocator, BranchInfo{
+            .name = try ctx.allocator.dupe(u8, std.mem.span(branch_name)),
+            .branch_type = branch_type,
+            .is_head = is_head,
+            .oid_str = oid_buf,
+            .author_name = try ctx.allocator.dupe(u8, std.mem.span(author.name)),
+            .message = try ctx.allocator.dupe(u8, commit.summary()),
+            .timestamp = commit_time,
+        });
+    }
+
+    // Sort branches: local first, then remote, alphabetically within each group
+    std.sort.pdq(BranchInfo, branches.items, {}, struct {
+        fn lessThan(_: void, a: BranchInfo, b: BranchInfo) bool {
+            // Local branches come before remote branches
+            if (a.branch_type == c.GIT_BRANCH_LOCAL and b.branch_type == c.GIT_BRANCH_REMOTE) {
+                return true;
+            }
+            if (a.branch_type == c.GIT_BRANCH_REMOTE and b.branch_type == c.GIT_BRANCH_LOCAL) {
+                return false;
+            }
+            // Within the same type, sort alphabetically
+            return std.mem.lessThan(u8, a.name, b.name);
+        }
+    }.lessThan);
+
+    // Display sorted branches
+    for (branches.items, 0..) |branch, i| {
+        try html.writeTableRow(writer, if (i % 2 == 0) "even" else null);
 
         // Branch name (with remote indicator)
         try writer.writeAll("<td>");
-        if (branch_type == c.GIT_BRANCH_REMOTE) {
+        if (branch.branch_type == c.GIT_BRANCH_REMOTE) {
             try writer.writeAll("<span style='color: #666'>remote/</span>");
         }
         if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=log&h={s}'>{s}</a>", .{ r.name, std.mem.span(branch_name), std.mem.span(branch_name) });
+            try writer.print("<a href='?r={s}&cmd=log&h={s}'>{s}</a>", .{ r.name, branch.name, branch.name });
         } else {
-            try writer.print("<a href='?cmd=log&h={s}'>{s}</a>", .{ std.mem.span(branch_name), std.mem.span(branch_name) });
+            try writer.print("<a href='?cmd=log&h={s}'>{s}</a>", .{ branch.name, branch.name });
         }
 
         // Show if this is the current branch
-        if (branch_type == c.GIT_BRANCH_LOCAL) {
-            var head: ?*c.git_reference = null;
-            if (c.git_repository_head(&head, @ptrCast(repo.repo)) == 0) {
-                defer c.git_reference_free(head);
-                if (c.git_reference_cmp(ref, head) == 0) {
-                    try writer.writeAll(" <strong>(HEAD)</strong>");
-                }
-            }
+        if (branch.is_head) {
+            try writer.writeAll(" <strong>(HEAD)</strong>");
         }
         try writer.writeAll("</td>");
 
         // Commit hash
         try writer.writeAll("<td>");
-        try shared.writeCommitLink(ctx, writer, &oid_str, oid_str[0..7]);
+        try shared.writeCommitLink(ctx, writer, &branch.oid_str, branch.oid_str[0..7]);
         try writer.writeAll("</td>");
 
         // Author
         try writer.writeAll("<td>");
-        try html.htmlEscape(writer, parsing.truncateString(std.mem.span(author.name), 30));
+        try html.htmlEscape(writer, parsing.truncateString(branch.author_name, 30));
         try writer.writeAll("</td>");
 
         // Message
         try writer.writeAll("<td>");
-        const commit_summary = commit.summary();
-        const truncated = parsing.truncateString(commit_summary, 50);
+        const truncated = parsing.truncateString(branch.message, 50);
         try html.htmlEscape(writer, truncated);
         try writer.writeAll("</td>");
 
         // Age
         try writer.writeAll("<td class='age'>");
-        try shared.formatAge(writer, commit_time);
+        try shared.formatAge(writer, branch.timestamp);
         try writer.writeAll("</td>");
 
         try writer.writeAll("</tr>\n");
-        count += 1;
     }
 
-    if (count == 0) {
+    if (branches.items.len == 0) {
         try writer.writeAll("<tr><td colspan='5'>No branches found</td></tr>\n");
     }
 
@@ -214,7 +267,7 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
     std.sort.pdq(TagInfo, tags.items, {}, struct {
         fn lessThan(_: void, a: TagInfo, b: TagInfo) bool {
             // Human/natural sort - compare version numbers properly
-            return humanCompare(b.name, a.name);  // Reversed for descending order
+            return humanCompare(b.name, a.name); // Reversed for descending order
         }
     }.lessThan);
 
@@ -304,12 +357,12 @@ const TagInfo = struct {
 fn humanCompare(a: []const u8, b: []const u8) bool {
     var i: usize = 0;
     var j: usize = 0;
-    
+
     while (i < a.len and j < b.len) {
         // Check if we're at a number in both strings
         const a_is_digit = std.ascii.isDigit(a[i]);
         const b_is_digit = std.ascii.isDigit(b[j]);
-        
+
         if (a_is_digit and b_is_digit) {
             // Compare numbers numerically
             var a_num: u64 = 0;
@@ -317,13 +370,13 @@ fn humanCompare(a: []const u8, b: []const u8) bool {
                 a_num = a_num * 10 + (a[i] - '0');
                 i += 1;
             }
-            
+
             var b_num: u64 = 0;
             while (j < b.len and std.ascii.isDigit(b[j])) {
                 b_num = b_num * 10 + (b[j] - '0');
                 j += 1;
             }
-            
+
             if (a_num != b_num) {
                 return a_num < b_num;
             }
@@ -339,7 +392,7 @@ fn humanCompare(a: []const u8, b: []const u8) bool {
             return !a_is_digit;
         }
     }
-    
+
     // Shorter string comes first
     return a.len < b.len;
 }

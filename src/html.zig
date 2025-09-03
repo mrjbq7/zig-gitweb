@@ -38,11 +38,29 @@ pub fn writeHeader(ctx: *gitweb.Context, writer: anytype) !void {
     try writer.writeAll("<td class='logo' rowspan='2'>");
     try writer.print("<a href='{s}'><img src='{s}' alt='gitweb logo'/></a>", .{ ctx.cfg.logo_link, ctx.cfg.logo });
     try writer.writeAll("</td>\n");
-    try writer.print("<td class='main'><a href='{s}'>{s}</a></td>", .{ ctx.cfg.virtual_root, ctx.cfg.root_title });
-    try writer.writeAll("</tr>\n");
-    try writer.writeAll("<tr><td class='sub'>");
-    try writer.writeAll(ctx.cfg.root_desc);
-    try writer.writeAll("</td></tr>\n");
+
+    // Show repository path if we're viewing a specific repository
+    if (ctx.repo) |repo| {
+        try writer.writeAll("<td class='main'>");
+        try writer.print("<a href='{s}'>index</a> : {s}", .{ ctx.cfg.virtual_root, repo.name });
+        try writer.writeAll("</td>\n");
+        try writer.writeAll("</tr>\n");
+        try writer.writeAll("<tr><td class='sub'>");
+        if (repo.desc.len > 0) {
+            try htmlEscape(writer, repo.desc);
+        } else {
+            try writer.writeAll("&nbsp;");
+        }
+        try writer.writeAll("</td></tr>\n");
+    } else {
+        // Main index page - show the site title
+        try writer.print("<td class='main'><a href='{s}'>{s}</a></td>", .{ ctx.cfg.virtual_root, ctx.cfg.root_title });
+        try writer.writeAll("</tr>\n");
+        try writer.writeAll("<tr><td class='sub'>");
+        try writer.writeAll(ctx.cfg.root_desc);
+        try writer.writeAll("</td></tr>\n");
+    }
+
     try writer.writeAll("</table>\n");
 
     // Navigation tabs and branch selector
@@ -142,7 +160,7 @@ fn writeBranchSelector(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype
 
     // Include hidden fields for current parameters
     try writer.print("<input type='hidden' name='r' value='{s}' />\n", .{repo.name});
-    
+
     // For tag page, switching branches should go to summary page
     if (std.mem.eql(u8, ctx.cmd, "tag")) {
         try writer.writeAll("<input type='hidden' name='cmd' value='summary' />\n");
@@ -152,9 +170,9 @@ fn writeBranchSelector(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype
 
     // Get current branch from query or use HEAD
     // On tag page, h parameter is the tag name, so we don't select it in the branch list
-    const current_branch = if (std.mem.eql(u8, ctx.cmd, "tag")) 
-        "HEAD"  // Default to HEAD when viewing tags
-    else 
+    const current_branch = if (std.mem.eql(u8, ctx.cmd, "tag"))
+        "HEAD" // Default to HEAD when viewing tags
+    else
         ctx.query.get("h") orelse "HEAD";
 
     try writer.writeAll("<label for='branch-select'>Branch: </label>\n");

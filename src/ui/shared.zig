@@ -12,12 +12,12 @@ pub fn formatAge(writer: anytype, timestamp: i64) !void {
     }
 
     // Determine age category for styling
-    const age_class = if (diff < @as(i64, @intFromFloat(gitweb.TM_MONTH))) 
-        "age-recent"  // black for days and weeks
-    else if (diff < gitweb.TM_YEAR) 
-        "age-months"  // gray for months
-    else 
-        "age-years";  // light gray for years
+    const age_class = if (diff < @as(i64, @intFromFloat(gitweb.TM_MONTH)))
+        "age-recent" // black for days and weeks
+    else if (diff < gitweb.TM_YEAR)
+        "age-months" // gray for months
+    else
+        "age-years"; // light gray for years
 
     try writer.print("<span class='{s}'>", .{age_class});
 
@@ -42,7 +42,7 @@ pub fn formatAge(writer: anytype, timestamp: i64) !void {
         const years = @divFloor(diff, gitweb.TM_YEAR);
         try writer.print("{d} year{s} ago", .{ years, if (years == 1) "" else "s" });
     }
-    
+
     try writer.writeAll("</span>");
 }
 
