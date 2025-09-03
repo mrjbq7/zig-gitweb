@@ -247,6 +247,28 @@ pre.diff {
     color: #0366d6;
 }
 
+/* Diff file sections for better separation */
+div.diff-file {
+    margin: 20px 0;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+div.diff-file-header {
+    background: #f1f8ff;
+    border-bottom: 1px solid #d1d5da;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+div.diff-file pre.diff {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+}
+
 /* Tree view */
 div.tree {
     margin: 16px 0;

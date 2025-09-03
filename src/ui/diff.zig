@@ -203,52 +203,104 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn displayUnifiedDiff(diff_obj: *git.Diff, writer: anytype) !void {
-    try writer.writeAll("<pre class='diff'>\n");
-
-    const callback_data = struct {
-        writer: @TypeOf(writer),
-
-        fn printLine(
-            delta: [*c]const c.git_diff_delta,
-            hunk: [*c]const c.git_diff_hunk,
-            line: [*c]const c.git_diff_line,
-            payload: ?*anyopaque,
-        ) callconv(.c) c_int {
-            _ = delta;
-            _ = hunk;
-
-            const self = @as(*@This(), @ptrCast(@alignCast(payload.?)));
-
-            switch (line.*.origin) {
-                '+' => self.writer.writeAll("<span class='add'>") catch return -1,
-                '-' => self.writer.writeAll("<span class='del'>") catch return -1,
-                '@' => self.writer.writeAll("<span class='hunk'>") catch return -1,
-                else => {},
-            }
-
-            if (line.*.origin != ' ' and line.*.origin != '\n') {
-                self.writer.writeByte(line.*.origin) catch return -1;
-            }
-
-            const content = @as([*]const u8, @ptrCast(line.*.content))[0..@intCast(line.*.content_len)];
-            html.htmlEscape(self.writer, content) catch return -1;
-
-            switch (line.*.origin) {
-                '+', '-', '@' => self.writer.writeAll("</span>") catch return -1,
-                else => {},
-            }
-
-            if (!std.mem.endsWith(u8, content, "\n")) {
-                self.writer.writeAll("\n") catch return -1;
-            }
-
-            return 0;
+    // Iterate through each file in the diff
+    const num_deltas = diff_obj.numDeltas();
+    
+    for (0..num_deltas) |delta_idx| {
+        const delta = diff_obj.getDelta(delta_idx) orelse continue;
+        
+        // File header with clear visual separation
+        try writer.writeAll("<div class='diff-file'>\n");
+        try writer.writeAll("<div class='diff-file-header'>\n");
+        
+        // Show file path changes
+        const old_path = std.mem.span(delta.old_file.path);
+        const new_path = std.mem.span(delta.new_file.path);
+        
+        if (std.mem.eql(u8, old_path, new_path)) {
+            try writer.print("<strong>{s}</strong>", .{new_path});
+        } else {
+            try writer.print("<strong>{s} → {s}</strong>", .{ old_path, new_path });
         }
-    }{ .writer = writer };
-
-    try diff_obj.print(c.GIT_DIFF_FORMAT_PATCH, @TypeOf(callback_data).printLine, @ptrCast(@constCast(&callback_data)));
-
-    try writer.writeAll("</pre>\n");
+        
+        // Show file status
+        const status_str = switch (delta.status) {
+            c.GIT_DELTA_ADDED => " (new file)",
+            c.GIT_DELTA_DELETED => " (deleted)",
+            c.GIT_DELTA_MODIFIED => " (modified)",
+            c.GIT_DELTA_RENAMED => " (renamed)",
+            c.GIT_DELTA_COPIED => " (copied)",
+            c.GIT_DELTA_TYPECHANGE => " (type changed)",
+            else => "",
+        };
+        try writer.writeAll(status_str);
+        
+        try writer.writeAll("</div>\n");
+        
+        // File diff content
+        try writer.writeAll("<pre class='diff'>\n");
+        
+        // Print only this file's patch
+        var patch: ?*c.git_patch = null;
+        if (c.git_patch_from_diff(&patch, @ptrCast(diff_obj.diff), delta_idx) == 0) {
+            defer c.git_patch_free(patch);
+            
+            var buf = std.mem.zeroes(c.git_buf);
+            defer c.git_buf_dispose(&buf);
+            
+            if (c.git_patch_to_buf(&buf, patch) == 0) {
+                const patch_str = buf.ptr[0..buf.size];
+                // Skip the file header lines that git_patch_to_buf adds
+                if (std.mem.indexOf(u8, patch_str, "@@")) |first_hunk| {
+                    // Find the start of the line containing @@
+                    var line_start = first_hunk;
+                    while (line_start > 0 and patch_str[line_start - 1] != '\n') {
+                        line_start -= 1;
+                    }
+                    const lines_to_show = patch_str[line_start..];
+                    
+                    // Parse and display the patch lines
+                    var lines = std.mem.tokenizeScalar(u8, lines_to_show, '\n');
+                    while (lines.next()) |line_content| {
+                        if (line_content.len == 0) continue;
+                        
+                        const origin = line_content[0];
+                        const content = if (line_content.len > 1) line_content[1..] else "";
+                        
+                        switch (origin) {
+                            '@' => {
+                                try writer.writeAll("<span class='hunk'>@");
+                                try html.htmlEscape(writer, content);
+                                try writer.writeAll("</span>\n");
+                            },
+                            '+' => {
+                                try writer.writeAll("<span class='add'>+");
+                                try html.htmlEscape(writer, content);
+                                try writer.writeAll("</span>\n");
+                            },
+                            '-' => {
+                                try writer.writeAll("<span class='del'>-");
+                                try html.htmlEscape(writer, content);
+                                try writer.writeAll("</span>\n");
+                            },
+                            ' ' => {
+                                try writer.writeAll(" ");
+                                try html.htmlEscape(writer, content);
+                                try writer.writeAll("\n");
+                            },
+                            else => {
+                                try html.htmlEscape(writer, line_content);
+                                try writer.writeAll("\n");
+                            },
+                        }
+                    }
+                }
+            }
+        }
+        
+        try writer.writeAll("</pre>\n");
+        try writer.writeAll("</div>\n");
+    }
 }
 
 fn displaySideBySideDiff(diff_obj: *git.Diff, writer: anytype) !void {

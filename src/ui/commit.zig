@@ -277,7 +277,7 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
     try writer.print("<span style='color: red'>{d} deletion{s}(-)</span>\n", .{ deletions, if (deletions == 1) "" else "s" });
     try writer.writeAll("</div>\n");
 
-    // Show file list
+    // Show each file's diff in a separate container
     try writer.writeAll("<div class='diff-files'>\n");
     const num_deltas = diff.numDeltas();
 
@@ -322,56 +322,63 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
         }
 
         try writer.writeAll("</div>\n");
+        
+        // Show this file's diff content
+        try writer.writeAll("<pre class='diff'>\n");
+        
+        // Create a patch for just this file
+        var patch: ?*c.git_patch = null;
+        if (c.git_patch_from_diff(&patch, @ptrCast(diff.diff), i) == 0) {
+            defer c.git_patch_free(patch);
+            
+            // Print the patch content
+            const callback_data = struct {
+                writer: @TypeOf(writer),
+
+                fn printLine(
+                    cb_delta: [*c]const c.git_diff_delta,
+                    cb_hunk: [*c]const c.git_diff_hunk,
+                    cb_line: [*c]const c.git_diff_line,
+                    payload: ?*anyopaque,
+                ) callconv(.c) c_int {
+                    _ = cb_delta;
+                    _ = cb_hunk;
+
+                    const self = @as(*@This(), @ptrCast(@alignCast(payload.?)));
+
+                    // Write line with appropriate styling
+                    switch (cb_line.*.origin) {
+                        '+' => self.writer.writeAll("<span class='add'>+") catch return -1,
+                        '-' => self.writer.writeAll("<span class='del'>-") catch return -1,
+                        '@' => self.writer.writeAll("<span class='hunk'>@") catch return -1,
+                        'F' => {}, // File header lines - don't print the 'F'
+                        ' ' => self.writer.writeByte(' ') catch return -1, // Context line
+                        else => {}, // Don't print other origin characters
+                    }
+
+                    const content = @as([*]const u8, @ptrCast(cb_line.*.content))[0..@intCast(cb_line.*.content_len)];
+                    html.htmlEscape(self.writer, content) catch return -1;
+
+                    switch (cb_line.*.origin) {
+                        '+', '-', '@' => self.writer.writeAll("</span>") catch return -1,
+                        else => {},
+                    }
+
+                    if (!std.mem.endsWith(u8, content, "\n")) {
+                        self.writer.writeAll("\n") catch return -1;
+                    }
+
+                    return 0;
+                }
+            }{ .writer = writer };
+            
+            _ = c.git_patch_print(patch, @TypeOf(callback_data).printLine, @ptrCast(@constCast(&callback_data)));
+        }
+        
+        try writer.writeAll("</pre>\n");
         try writer.writeAll("</div>\n");
     }
     try writer.writeAll("</div>\n");
-
-    // Show full diff
-    try writer.writeAll("<pre class='diff'>\n");
-
-    const callback_data = struct {
-        writer: @TypeOf(writer),
-
-        fn printLine(
-            delta: [*c]const c.git_diff_delta,
-            hunk: [*c]const c.git_diff_hunk,
-            line: [*c]const c.git_diff_line,
-            payload: ?*anyopaque,
-        ) callconv(.c) c_int {
-            _ = delta;
-            _ = hunk;
-
-            const self = @as(*@This(), @ptrCast(@alignCast(payload.?)));
-
-            // Write line with appropriate styling
-            switch (line.*.origin) {
-                '+' => self.writer.writeAll("<span class='add'>+") catch return -1,
-                '-' => self.writer.writeAll("<span class='del'>-") catch return -1,
-                '@' => self.writer.writeAll("<span class='hunk'>@") catch return -1,
-                'F' => {}, // File header lines - don't print the 'F'
-                ' ' => self.writer.writeByte(' ') catch return -1, // Context line
-                else => {}, // Don't print other origin characters
-            }
-
-            const content = @as([*]const u8, @ptrCast(line.*.content))[0..@intCast(line.*.content_len)];
-            html.htmlEscape(self.writer, content) catch return -1;
-
-            switch (line.*.origin) {
-                '+', '-', '@' => self.writer.writeAll("</span>") catch return -1,
-                else => {},
-            }
-
-            if (!std.mem.endsWith(u8, content, "\n")) {
-                self.writer.writeAll("\n") catch return -1;
-            }
-
-            return 0;
-        }
-    }{ .writer = writer };
-
-    try diff.print(c.GIT_DIFF_FORMAT_PATCH, @TypeOf(callback_data).printLine, @ptrCast(@constCast(&callback_data)));
-
-    try writer.writeAll("</pre>\n");
 }
 
 fn formatTimezone(offset: c_int) [6]u8 {
