@@ -90,10 +90,18 @@ fn processCgiRequest(ctx: *gitweb.Context) !void {
         // Now output headers with correct MIME type
         try stdout.print("Content-Type: {s}\r\n", .{ctx.page.mimetype});
 
-        // Add Content-Disposition header for downloads
+        // Add Content-Disposition header
         if (ctx.page.filename) |filename| {
             if (filename.len > 0) {
-                try stdout.print("Content-Disposition: attachment; filename=\"{s}\"\r\n", .{filename});
+                // Use inline for images and PDFs (viewable in browser), attachment for others
+                const disposition = if (std.mem.startsWith(u8, ctx.page.mimetype, "image/") or
+                    std.mem.eql(u8, ctx.page.mimetype, "application/pdf") or
+                    std.mem.eql(u8, ctx.page.mimetype, "text/plain") or
+                    std.mem.eql(u8, ctx.page.mimetype, "text/html"))
+                    "inline"
+                else
+                    "attachment";
+                try stdout.print("Content-Disposition: {s}; filename=\"{s}\"\r\n", .{ disposition, filename });
             }
         }
 
