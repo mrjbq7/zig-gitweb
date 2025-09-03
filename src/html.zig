@@ -12,6 +12,7 @@ pub fn writeHeader(ctx: *gitweb.Context, writer: anytype) !void {
     try writer.writeAll("<html lang='en'>\n");
     try writer.writeAll("<head>\n");
     try writer.print("<meta charset='{s}'/>\n", .{ctx.page.charset});
+    try writer.writeAll("<meta name='viewport' content='width=device-width, initial-scale=1'/>\n");
     try writer.print("<title>{s}</title>\n", .{ctx.page.title});
     try writer.print("<link rel='stylesheet' type='text/css' href='{s}'/>\n", .{ctx.cfg.css});
 
