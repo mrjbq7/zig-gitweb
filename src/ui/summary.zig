@@ -271,13 +271,10 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
 
         // Tag name
         try writer.writeAll("<td>");
-        // Get the commit OID for the tag
-        const target_oid = @constCast(&tag.ref).target() orelse continue;
-        const oid_str = try git.oidToString(target_oid);
         if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=commit&id={s}'>{s}</a>", .{ r.name, oid_str, tag.name });
+            try writer.print("<a href='?r={s}&cmd=tag&h={s}'>{s}</a>", .{ r.name, tag.name, tag.name });
         } else {
-            try writer.print("<a href='?cmd=commit&id={s}'>{s}</a>", .{ oid_str, tag.name });
+            try writer.print("<a href='?cmd=tag&h={s}'>{s}</a>", .{ tag.name, tag.name });
         }
         try writer.writeAll("</td>");
 

@@ -205,11 +205,10 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
 
         // Tag name
         try writer.writeAll("<td>");
-        const target_oid_str = try git.oidToString(@ptrCast(&tag.target_oid));
         if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=commit&id={s}'>{s}</a>", .{ r.name, target_oid_str, tag.name });
+            try writer.print("<a href='?r={s}&cmd=tag&h={s}'>{s}</a>", .{ r.name, tag.name, tag.name });
         } else {
-            try writer.print("<a href='?cmd=commit&id={s}'>{s}</a>", .{ target_oid_str, tag.name });
+            try writer.print("<a href='?cmd=tag&h={s}'>{s}</a>", .{ tag.name, tag.name });
         }
 
         // Show if annotated
