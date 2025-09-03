@@ -23,6 +23,7 @@ a:hover { text-decoration: underline; }
 
 /* Header */
 #header {
+    width: 100%;
     background: #f6f8fa;
     border-bottom: 1px solid #d1d5da;
     padding: 16px;
