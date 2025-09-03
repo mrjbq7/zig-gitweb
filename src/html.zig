@@ -272,6 +272,17 @@ pub fn urlEncode(writer: anytype, text: []const u8) !void {
     }
 }
 
+pub fn urlEncodePath(writer: anytype, text: []const u8) !void {
+    // Like urlEncode but keeps forward slashes unencoded for readability
+    for (text) |char| {
+        if (std.ascii.isAlphanumeric(char) or char == '-' or char == '_' or char == '.' or char == '~' or char == '/') {
+            try writer.writeByte(char);
+        } else {
+            try writer.print("%{X:0>2}", .{char});
+        }
+    }
+}
+
 pub fn writeLink(writer: anytype, url: []const u8, text: []const u8) !void {
     try writer.print("<a href='{s}'>", .{url});
     try htmlEscape(writer, text);

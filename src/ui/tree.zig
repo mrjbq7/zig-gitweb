@@ -136,7 +136,8 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         const last_slash = std.mem.lastIndexOf(u8, base_path, "/");
         if (last_slash) |pos| {
             if (pos > 0) {
-                try writer.print("&path={s}", .{base_path[0..pos]});
+                try writer.writeAll("&path=");
+                try html.urlEncodePath(writer, base_path[0..pos]);
             }
         }
         try writer.writeAll("'>..</a></td>");
@@ -208,7 +209,9 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
             } else if (ctx.query.get("h")) |branch| {
                 try writer.print("&h={s}", .{branch});
             }
-            try writer.print("&path={s}'>{s}/</a>", .{ full_path, entry_name });
+            try writer.writeAll("&path=");
+            try html.urlEncodePath(writer, full_path);
+            try writer.print("'>{s}/</a>", .{entry_name});
         } else {
             try writer.writeAll("<a href='?");
             if (ctx.repo) |r| {
@@ -221,7 +224,9 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
             } else if (ctx.query.get("h")) |branch| {
                 try writer.print("&h={s}", .{branch});
             }
-            try writer.print("&path={s}'>{s}</a>", .{ full_path, entry_name });
+            try writer.writeAll("&path=");
+            try html.urlEncodePath(writer, full_path);
+            try writer.print("'>{s}</a>", .{entry_name});
         }
         try writer.writeAll("</td>");
 
@@ -257,7 +262,9 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         } else if (ctx.query.get("h")) |branch| {
             try writer.print("&h={s}", .{branch});
         }
-        try writer.print("&path={s}'>log</a>", .{full_path});
+        try writer.writeAll("&path=");
+        try html.urlEncodePath(writer, full_path);
+        try writer.writeAll("'>log</a>");
         try writer.writeAll("</td>");
 
         try writer.writeAll("</tr>\n");
