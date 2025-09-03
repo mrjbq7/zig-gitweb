@@ -206,7 +206,11 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
         // Tag name
         try writer.writeAll("<td>");
         const target_oid_str = try git.oidToString(@ptrCast(&tag.target_oid));
-        try writer.print("<a href='?cmd=commit&id={s}'>{s}</a>", .{ target_oid_str, tag.name });
+        if (ctx.repo) |r| {
+            try writer.print("<a href='?r={s}&cmd=commit&id={s}'>{s}</a>", .{ r.name, target_oid_str, tag.name });
+        } else {
+            try writer.print("<a href='?cmd=commit&id={s}'>{s}</a>", .{ target_oid_str, tag.name });
+        }
 
         // Show if annotated
         if (tag.tag_obj != null) {
@@ -216,8 +220,13 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
 
         // Download links
         try writer.writeAll("<td>");
-        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{tag.name});
-        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{tag.name});
+        if (ctx.repo) |r| {
+            try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{ r.name, tag.name });
+            try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{ r.name, tag.name });
+        } else {
+            try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{tag.name});
+            try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{tag.name});
+        }
         try writer.writeAll("</td>");
 
         // Author/Tagger

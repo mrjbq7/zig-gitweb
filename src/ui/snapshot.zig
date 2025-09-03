@@ -33,9 +33,27 @@ pub fn snapshot(ctx: *gitweb.Context, writer: anytype) !void {
 
     // Resolve reference
     var oid = git.stringToOid(ref_str) catch blk: {
-        // Try as reference name
-        var ref = git_repo.getReference(ref_str) catch {
-            return error.InvalidReference;
+        // Try with refs/tags/ prefix first (most common for snapshots)
+        const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_str}, @as(u8, 0));
+        defer ctx.allocator.free(tag_ref);
+
+        var ref = git_repo.getReference(tag_ref) catch {
+            // Try with refs/heads/ prefix
+            const branch_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_str}, @as(u8, 0));
+            defer ctx.allocator.free(branch_ref);
+
+            var ref2 = git_repo.getReference(branch_ref) catch {
+                // Try as bare reference name (might be fully qualified already)
+                var ref3 = git_repo.getReference(ref_str) catch {
+                    return error.InvalidReference;
+                };
+                defer ref3.free();
+                const target = ref3.target() orelse return error.InvalidReference;
+                break :blk target.*;
+            };
+            defer ref2.free();
+            const target = ref2.target() orelse return error.InvalidReference;
+            break :blk target.*;
         };
         defer ref.free();
         const target = ref.target() orelse return error.InvalidReference;

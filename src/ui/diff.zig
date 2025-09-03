@@ -26,11 +26,11 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     } else blk: {
         // No ID specified, get latest commit from branch or HEAD
         const ref_name = ctx.query.get("h") orelse "HEAD";
-        
+
         if (std.mem.eql(u8, ref_name, "HEAD")) {
             var head_ref = try git_repo.getHead();
             defer head_ref.free();
-            
+
             const head_oid = head_ref.target() orelse {
                 try writer.writeAll("<p>Unable to get HEAD commit.</p>\n");
                 try writer.writeAll("</div>\n");
@@ -43,14 +43,14 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
                 // Try with refs/heads/ prefix
                 const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
                 defer ctx.allocator.free(full_ref);
-                
+
                 var ref2 = git_repo.getReference(full_ref) catch {
                     try writer.writeAll("<p>Unable to find branch reference.</p>\n");
                     try writer.writeAll("</div>\n");
                     return;
                 };
                 defer ref2.free();
-                
+
                 const oid = ref2.target() orelse {
                     try writer.writeAll("<p>Unable to get branch commit.</p>\n");
                     try writer.writeAll("</div>\n");
@@ -59,7 +59,7 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
                 break :blk oid.*;
             };
             defer ref.free();
-            
+
             const oid = ref.target() orelse {
                 try writer.writeAll("<p>Unable to get branch commit.</p>\n");
                 try writer.writeAll("</div>\n");
@@ -68,7 +68,7 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
             break :blk oid.*;
         }
     };
-    
+
     // Get the second commit ID (parent if not specified)
     const id2 = ctx.query.get("id2") orelse blk: {
         // If id2 not specified, diff against parent
@@ -173,19 +173,19 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     if (std.mem.eql(u8, diff_type, "unified")) {
         try writer.writeAll("<strong>Unified</strong> | ");
     } else {
-        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=unified'>Unified</a> | ", .{ oid1_str, oid2_str });
+        try writer.print("<a href='?r={s}&cmd=diff&id={s}&id2={s}&dt=unified'>Unified</a> | ", .{ repo.name, oid1_str, oid2_str });
     }
 
     if (std.mem.eql(u8, diff_type, "ssdiff")) {
         try writer.writeAll("<strong>Side-by-side</strong> | ");
     } else {
-        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=ssdiff'>Side-by-side</a> | ", .{ oid1_str, oid2_str });
+        try writer.print("<a href='?r={s}&cmd=diff&id={s}&id2={s}&dt=ssdiff'>Side-by-side</a> | ", .{ repo.name, oid1_str, oid2_str });
     }
 
     if (std.mem.eql(u8, diff_type, "stat")) {
         try writer.writeAll("<strong>Stat only</strong>");
     } else {
-        try writer.print("<a href='?cmd=diff&id={s}&id2={s}&dt=stat'>Stat only</a>", .{ oid1_str, oid2_str });
+        try writer.print("<a href='?r={s}&cmd=diff&id={s}&id2={s}&dt=stat'>Stat only</a>", .{ repo.name, oid1_str, oid2_str });
     }
 
     try writer.writeAll("</div>\n");
@@ -252,60 +252,289 @@ fn displayUnifiedDiff(diff_obj: *git.Diff, writer: anytype) !void {
 }
 
 fn displaySideBySideDiff(diff_obj: *git.Diff, writer: anytype) !void {
-    try writer.writeAll("<table class='ssdiff'>\n");
-    try writer.writeAll("<tr><th colspan='2'>Old</th><th colspan='2'>New</th></tr>\n");
+    try writer.writeAll("<div class='ssdiff-container'>\n");
 
     const num_deltas = diff_obj.numDeltas();
 
     for (0..num_deltas) |i| {
-        const delta = diff_obj.getDelta(i).?;
+        var patch: ?*c.git_patch = null;
+        if (c.git_patch_from_diff(&patch, diff_obj.diff, i) != 0) continue;
+        defer c.git_patch_free(patch);
 
-        try writer.writeAll("<tr class='ssdiff-file'><td colspan='4'>");
+        if (patch == null) continue;
+
+        const delta = c.git_patch_get_delta(patch);
+
+        // File header
+        try writer.writeAll("<div class='ssdiff-file-header'>");
         try html.htmlEscape(writer, std.mem.span(delta.*.new_file.path));
-        try writer.writeAll("</td></tr>\n");
+        try writer.writeAll("</div>\n");
 
-        // TODO: Implement proper side-by-side diff rendering
-        // For now, show a placeholder
-        try writer.writeAll("<tr><td colspan='2'>Old content</td><td colspan='2'>New content</td></tr>\n");
+        try writer.writeAll("<table class='ssdiff'>\n");
+
+        const num_hunks = c.git_patch_num_hunks(patch);
+
+        for (0..num_hunks) |h| {
+            var lines_in_hunk: usize = 0;
+            var hunk: ?*const c.git_diff_hunk = null;
+
+            if (c.git_patch_get_hunk(&hunk, &lines_in_hunk, patch, h) != 0) continue;
+
+            // Hunk header
+            try writer.writeAll("<tr class='ssdiff-hunk'>");
+            try writer.writeAll("<td class='lineno'></td>");
+            try writer.writeAll("<td class='hunk' colspan='3'>");
+
+            if (hunk) |hk| {
+                // The header is a fixed-size array, find the null terminator or use full length
+                const header_bytes = &hk.*.header;
+                var header_len: usize = 0;
+                for (header_bytes) |byte| {
+                    if (byte == 0) break;
+                    header_len += 1;
+                }
+                const hunk_header = header_bytes[0..header_len];
+                try html.htmlEscape(writer, hunk_header);
+            } else {
+                try writer.writeAll("@@");
+            }
+
+            try writer.writeAll("</td>");
+            try writer.writeAll("</tr>\n");
+
+            // Collect all lines for this hunk first
+            var hunk_lines = std.ArrayList(DiffLine).empty;
+            defer hunk_lines.deinit(std.heap.page_allocator);
+
+            for (0..lines_in_hunk) |l| {
+                var line: ?*const c.git_diff_line = null;
+                if (c.git_patch_get_line_in_hunk(&line, patch, h, l) != 0) continue;
+
+                if (line) |ln| {
+                    const content = @as([*]const u8, @ptrCast(ln.*.content))[0..@intCast(ln.*.content_len)];
+                    try hunk_lines.append(std.heap.page_allocator, .{
+                        .origin = ln.*.origin,
+                        .content = content,
+                        .old_lineno = ln.*.old_lineno,
+                        .new_lineno = ln.*.new_lineno,
+                    });
+                }
+            }
+
+            // Process lines, grouping consecutive deletions and additions
+            var line_idx: usize = 0;
+            while (line_idx < hunk_lines.items.len) {
+                const line = hunk_lines.items[line_idx];
+
+                switch (line.origin) {
+                    ' ' => {
+                        // Context line - appears on both sides with same content
+                        try writer.writeAll("<tr>");
+
+                        // Old side
+                        try writer.writeAll("<td class='lineno'>");
+                        if (line.old_lineno > 0) {
+                            try writer.print("{d}", .{line.old_lineno});
+                        }
+                        try writer.writeAll("</td>");
+                        try writer.writeAll("<td>");
+                        try html.htmlEscape(writer, line.content);
+                        try writer.writeAll("</td>");
+
+                        // New side
+                        try writer.writeAll("<td class='lineno'>");
+                        if (line.new_lineno > 0) {
+                            try writer.print("{d}", .{line.new_lineno});
+                        }
+                        try writer.writeAll("</td>");
+                        try writer.writeAll("<td>");
+                        try html.htmlEscape(writer, line.content);
+                        try writer.writeAll("</td>");
+
+                        try writer.writeAll("</tr>\n");
+                        line_idx += 1;
+                    },
+                    '-' => {
+                        // Collect consecutive deletions
+                        const del_start = line_idx;
+                        while (line_idx < hunk_lines.items.len and hunk_lines.items[line_idx].origin == '-') {
+                            line_idx += 1;
+                        }
+
+                        // Collect consecutive additions that follow
+                        const add_start = line_idx;
+                        while (line_idx < hunk_lines.items.len and hunk_lines.items[line_idx].origin == '+') {
+                            line_idx += 1;
+                        }
+
+                        const num_dels = add_start - del_start;
+                        const num_adds = line_idx - add_start;
+                        const max_lines = @max(num_dels, num_adds);
+
+                        // Render the changes side by side
+                        for (0..max_lines) |row| {
+                            try writer.writeAll("<tr>");
+
+                            // Old side (deletion)
+                            if (row < num_dels) {
+                                const del_line = hunk_lines.items[del_start + row];
+                                try writer.writeAll("<td class='lineno'>");
+                                if (del_line.old_lineno > 0) {
+                                    try writer.print("{d}", .{del_line.old_lineno});
+                                }
+                                try writer.writeAll("</td>");
+                                try writer.writeAll("<td class='del'>");
+                                try html.htmlEscape(writer, del_line.content);
+                                try writer.writeAll("</td>");
+                            } else {
+                                try writer.writeAll("<td class='lineno'></td>");
+                                try writer.writeAll("<td></td>");
+                            }
+
+                            // New side (addition)
+                            if (row < num_adds) {
+                                const add_line = hunk_lines.items[add_start + row];
+                                try writer.writeAll("<td class='lineno'>");
+                                if (add_line.new_lineno > 0) {
+                                    try writer.print("{d}", .{add_line.new_lineno});
+                                }
+                                try writer.writeAll("</td>");
+                                try writer.writeAll("<td class='add'>");
+                                try html.htmlEscape(writer, add_line.content);
+                                try writer.writeAll("</td>");
+                            } else {
+                                try writer.writeAll("<td class='lineno'></td>");
+                                try writer.writeAll("<td></td>");
+                            }
+
+                            try writer.writeAll("</tr>\n");
+                        }
+                    },
+                    '+' => {
+                        // Standalone addition (not preceded by deletion)
+                        try writer.writeAll("<tr>");
+
+                        // Old side (empty)
+                        try writer.writeAll("<td class='lineno'></td>");
+                        try writer.writeAll("<td></td>");
+
+                        // New side (addition)
+                        try writer.writeAll("<td class='lineno'>");
+                        if (line.new_lineno > 0) {
+                            try writer.print("{d}", .{line.new_lineno});
+                        }
+                        try writer.writeAll("</td>");
+                        try writer.writeAll("<td class='add'>");
+                        try html.htmlEscape(writer, line.content);
+                        try writer.writeAll("</td>");
+
+                        try writer.writeAll("</tr>\n");
+                        line_idx += 1;
+                    },
+                    else => {
+                        line_idx += 1;
+                    },
+                }
+            }
+        }
+
+        try writer.writeAll("</table>\n");
     }
 
-    try writer.writeAll("</table>\n");
+    try writer.writeAll("</div>\n");
 }
+
+const DiffLine = struct {
+    origin: u8,
+    content: []const u8,
+    old_lineno: c_int,
+    new_lineno: c_int,
+};
 
 fn displayDiffStat(diff_obj: *git.Diff, writer: anytype) !void {
     try writer.writeAll("<table class='diffstat-table'>\n");
     try writer.writeAll("<tr><th>File</th><th>Changes</th><th>Graph</th></tr>\n");
 
     const num_deltas = diff_obj.numDeltas();
+    var max_changes: usize = 0;
+
+    // First pass: collect statistics and find max changes
+    var file_stats = std.ArrayList(FileStats).empty;
+    defer file_stats.deinit(std.heap.page_allocator);
 
     for (0..num_deltas) |i| {
-        const delta = diff_obj.getDelta(i).?;
+        var patch: ?*c.git_patch = null;
+        if (c.git_patch_from_diff(&patch, diff_obj.diff, i) != 0) continue;
+        defer c.git_patch_free(patch);
 
+        if (patch == null) continue;
+
+        var additions: usize = 0;
+        var deletions: usize = 0;
+
+        if (c.git_patch_line_stats(null, &additions, &deletions, patch) == 0) {
+            const total = additions + deletions;
+            if (total > max_changes) max_changes = total;
+
+            const delta = diff_obj.getDelta(i).?;
+            try file_stats.append(std.heap.page_allocator, .{
+                .delta = delta,
+                .additions = additions,
+                .deletions = deletions,
+            });
+        }
+    }
+
+    // Second pass: render the table
+    for (file_stats.items) |stat| {
         try writer.writeAll("<tr>");
 
         // File name
         try writer.writeAll("<td>");
-        if (delta.*.status == c.GIT_DELTA_RENAMED) {
-            try html.htmlEscape(writer, std.mem.span(delta.*.old_file.path));
+        if (stat.delta.*.status == c.GIT_DELTA_RENAMED) {
+            try html.htmlEscape(writer, std.mem.span(stat.delta.*.old_file.path));
             try writer.writeAll(" → ");
-            try html.htmlEscape(writer, std.mem.span(delta.*.new_file.path));
+            try html.htmlEscape(writer, std.mem.span(stat.delta.*.new_file.path));
         } else {
-            try html.htmlEscape(writer, std.mem.span(delta.*.new_file.path));
+            try html.htmlEscape(writer, std.mem.span(stat.delta.*.new_file.path));
         }
         try writer.writeAll("</td>");
 
         // Changes count
-        try writer.writeAll("<td>");
-        // TODO: Get per-file statistics
-        try writer.writeAll("N/A");
+        try writer.writeAll("<td style='text-align: right'>");
+        if (stat.additions > 0 and stat.deletions > 0) {
+            try writer.print("+{d},-{d}", .{ stat.additions, stat.deletions });
+        } else if (stat.additions > 0) {
+            try writer.print("+{d}", .{stat.additions});
+        } else if (stat.deletions > 0) {
+            try writer.print("-{d}", .{stat.deletions});
+        } else {
+            try writer.writeAll("0");
+        }
         try writer.writeAll("</td>");
 
         // Graph
         try writer.writeAll("<td>");
-        try writer.writeAll("<span class='diffstat-graph'>");
-        // TODO: Draw change graph
-        try writer.writeAll("+++---");
-        try writer.writeAll("</span>");
+        const total = stat.additions + stat.deletions;
+        if (total > 0 and max_changes > 0) {
+            const graph_width = 40; // Max width of graph in chars
+            const scaled_width = (total * graph_width) / max_changes;
+            const add_width = (stat.additions * scaled_width) / total;
+            const del_width = scaled_width - add_width;
+
+            try writer.writeAll("<span class='diffstat-graph'>");
+            if (add_width > 0) {
+                try writer.writeAll("<span style='color: green'>");
+                for (0..add_width) |_| try writer.writeAll("+");
+                try writer.writeAll("</span>");
+            }
+            if (del_width > 0) {
+                try writer.writeAll("<span style='color: red'>");
+                for (0..del_width) |_| try writer.writeAll("-");
+                try writer.writeAll("</span>");
+            }
+            try writer.writeAll("</span>");
+        }
         try writer.writeAll("</td>");
 
         try writer.writeAll("</tr>\n");
@@ -313,6 +542,12 @@ fn displayDiffStat(diff_obj: *git.Diff, writer: anytype) !void {
 
     try writer.writeAll("</table>\n");
 }
+
+const FileStats = struct {
+    delta: *const c.git_diff_delta,
+    additions: usize,
+    deletions: usize,
+};
 
 pub fn rawdiff(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
@@ -333,11 +568,11 @@ pub fn rawdiff(ctx: *gitweb.Context, writer: anytype) !void {
     } else blk: {
         // No ID specified, get latest commit from branch or HEAD
         const ref_name = ctx.query.get("h") orelse "HEAD";
-        
+
         if (std.mem.eql(u8, ref_name, "HEAD")) {
             var head_ref = try git_repo.getHead();
             defer head_ref.free();
-            
+
             const head_oid = head_ref.target() orelse return error.NoCommit;
             break :blk head_oid.*;
         } else {
@@ -346,22 +581,22 @@ pub fn rawdiff(ctx: *gitweb.Context, writer: anytype) !void {
                 // Try with refs/heads/ prefix
                 const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
                 defer ctx.allocator.free(full_ref);
-                
+
                 var ref2 = git_repo.getReference(full_ref) catch {
                     return error.BranchNotFound;
                 };
                 defer ref2.free();
-                
+
                 const oid = ref2.target() orelse return error.NoCommit;
                 break :blk oid.*;
             };
             defer ref.free();
-            
+
             const oid = ref.target() orelse return error.NoCommit;
             break :blk oid.*;
         }
     };
-    
+
     const id2 = ctx.query.get("id2") orelse return error.NoSecondCommit;
     const oid2 = try git.stringToOid(id2);
 

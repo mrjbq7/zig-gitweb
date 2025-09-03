@@ -61,7 +61,80 @@ pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
 
     const oid_str = try git.oidToString(commit_obj.id());
 
-    try writer.print("<h2>Commit {s}</h2>\n", .{oid_str[0..7]});
+    try writer.print("<h2>Commit {s}", .{oid_str[0..7]});
+
+    // Check for branches and tags at this commit
+    var refs_found = false;
+
+    // Check branches
+    var branch_iter: ?*c.git_branch_iterator = null;
+    if (c.git_branch_iterator_new(&branch_iter, @ptrCast(git_repo.repo), c.GIT_BRANCH_LOCAL) == 0) {
+        defer c.git_branch_iterator_free(branch_iter);
+
+        var ref: ?*c.git_reference = null;
+        var branch_type: c.git_branch_t = undefined;
+
+        while (c.git_branch_next(&ref, &branch_type, branch_iter) == 0) {
+            defer c.git_reference_free(ref);
+
+            const target = c.git_reference_target(ref);
+            if (target == null) continue;
+
+            if (c.git_oid_equal(commit_obj.id(), target) == 1) {
+                const branch_name = c.git_reference_shorthand(ref);
+                if (branch_name != null) {
+                    if (!refs_found) {
+                        try writer.writeAll(" ");
+                        refs_found = true;
+                    }
+                    try writer.writeAll("<span class='ref-branch'>");
+                    try html.htmlEscape(writer, std.mem.span(branch_name));
+                    try writer.writeAll("</span> ");
+                }
+            }
+        }
+    }
+
+    // Check tags
+    var tag_names: c.git_strarray = undefined;
+    if (c.git_tag_list(&tag_names, @ptrCast(git_repo.repo)) == 0) {
+        defer c.git_strarray_dispose(&tag_names);
+
+        for (0..tag_names.count) |i| {
+            const tag_name = tag_names.strings[i];
+
+            var ref: ?*c.git_reference = null;
+            const ref_name = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{std.mem.span(tag_name)}, 0);
+            defer ctx.allocator.free(ref_name);
+
+            if (c.git_reference_lookup(&ref, @ptrCast(git_repo.repo), ref_name) != 0) continue;
+            defer c.git_reference_free(ref);
+
+            const oid = c.git_reference_target(ref);
+            if (oid == null) continue;
+
+            // Check if it's an annotated tag
+            var target_oid = oid.*;
+            var tag_obj: ?*c.git_tag = null;
+            if (c.git_tag_lookup(&tag_obj, @ptrCast(git_repo.repo), oid) == 0) {
+                // Annotated tag - get the target commit
+                target_oid = c.git_tag_target_id(tag_obj).*;
+                c.git_object_free(@ptrCast(tag_obj));
+            }
+
+            if (c.git_oid_equal(commit_obj.id(), &target_oid) == 1) {
+                if (!refs_found) {
+                    try writer.writeAll(" ");
+                    refs_found = true;
+                }
+                try writer.writeAll("<span class='ref-tag'>");
+                try html.htmlEscape(writer, std.mem.span(tag_name));
+                try writer.writeAll("</span> ");
+            }
+        }
+    }
+
+    try writer.writeAll("</h2>\n");
 
     // Commit info table
     try writer.writeAll("<table class='commit-info'>\n");

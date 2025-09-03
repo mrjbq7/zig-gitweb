@@ -72,17 +72,31 @@ fn processCgiRequest(ctx: *gitweb.Context) !void {
         }
     }
 
-    // Check if this is a plain content request
-    if (std.mem.eql(u8, ctx.cmd, "plain")) {
+    // Check if this is a non-HTML content request
+    if (std.mem.eql(u8, ctx.cmd, "plain") or
+        std.mem.eql(u8, ctx.cmd, "snapshot") or
+        std.mem.eql(u8, ctx.cmd, "patch") or
+        std.mem.eql(u8, ctx.cmd, "atom") or
+        std.mem.eql(u8, ctx.cmd, "rawdiff") or
+        std.mem.eql(u8, ctx.cmd, "clone"))
+    {
         // We need to buffer the content so we can determine MIME type first
         var content_buffer: std.ArrayList(u8) = .empty;
         defer content_buffer.deinit(ctx.allocator);
 
-        // Call the plain handler to set MIME type and generate content
+        // Call the handler to set MIME type and generate content
         try cmd.dispatch(ctx, content_buffer.writer(ctx.allocator));
 
         // Now output headers with correct MIME type
         try stdout.print("Content-Type: {s}\r\n", .{ctx.page.mimetype});
+
+        // Add Content-Disposition header for downloads
+        if (ctx.page.filename) |filename| {
+            if (filename.len > 0) {
+                try stdout.print("Content-Disposition: attachment; filename=\"{s}\"\r\n", .{filename});
+            }
+        }
+
         try stdout.writeAll("Cache-Control: no-cache, no-store\r\n");
         try stdout.writeAll("\r\n");
 

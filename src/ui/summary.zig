@@ -271,13 +271,25 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
 
         // Tag name
         try writer.writeAll("<td>");
-        try writer.print("<a href='?cmd=tag&id={s}'>{s}</a>", .{ tag.name, tag.name });
+        // Get the commit OID for the tag
+        const target_oid = @constCast(&tag.ref).target() orelse continue;
+        const oid_str = try git.oidToString(target_oid);
+        if (ctx.repo) |r| {
+            try writer.print("<a href='?r={s}&cmd=commit&id={s}'>{s}</a>", .{ r.name, oid_str, tag.name });
+        } else {
+            try writer.print("<a href='?cmd=commit&id={s}'>{s}</a>", .{ oid_str, tag.name });
+        }
         try writer.writeAll("</td>");
 
         // Download links
         try writer.writeAll("<td>");
-        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> ", .{tag.name});
-        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{tag.name});
+        if (ctx.repo) |r| {
+            try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> ", .{ r.name, tag.name });
+            try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{ r.name, tag.name });
+        } else {
+            try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> ", .{tag.name});
+            try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{tag.name});
+        }
         try writer.writeAll("</td>");
 
         // Author

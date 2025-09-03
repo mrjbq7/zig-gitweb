@@ -7,6 +7,11 @@ const parsing = @import("../parsing.zig");
 
 const c = git.c;
 
+const RefInfo = struct {
+    name: []const u8,
+    ref_type: enum { branch, tag },
+};
+
 pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
 
@@ -62,6 +67,98 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
         return;
     };
     defer git_repo.close();
+
+    // Build a map of commit OIDs to their refs (branches and tags)
+    var refs_map = std.StringHashMap(std.ArrayList(RefInfo)).init(ctx.allocator);
+    defer {
+        var iter = refs_map.iterator();
+        while (iter.next()) |entry| {
+            ctx.allocator.free(entry.key_ptr.*); // Free the key
+            for (entry.value_ptr.items) |*ref_info| {
+                ctx.allocator.free(ref_info.name);
+            }
+            entry.value_ptr.deinit(ctx.allocator);
+        }
+        refs_map.deinit();
+    }
+
+    // Collect all branches
+    var branch_iter: ?*c.git_branch_iterator = null;
+    if (c.git_branch_iterator_new(&branch_iter, @ptrCast(git_repo.repo), c.GIT_BRANCH_LOCAL) == 0) {
+        defer c.git_branch_iterator_free(branch_iter);
+
+        var ref: ?*c.git_reference = null;
+        var branch_type: c.git_branch_t = undefined;
+
+        while (c.git_branch_next(&ref, &branch_type, branch_iter) == 0) {
+            defer c.git_reference_free(ref);
+
+            const branch_name = c.git_reference_shorthand(ref);
+            if (branch_name == null) continue;
+
+            const target = c.git_reference_target(ref);
+            if (target == null) continue;
+
+            const oid_str = try git.oidToString(target);
+            const oid_key = try ctx.allocator.dupe(u8, &oid_str);
+
+            var entry = try refs_map.getOrPut(oid_key);
+            if (!entry.found_existing) {
+                entry.value_ptr.* = std.ArrayList(RefInfo).empty;
+            } else {
+                ctx.allocator.free(oid_key); // Free the duplicate key
+            }
+
+            try entry.value_ptr.append(ctx.allocator, .{
+                .name = try ctx.allocator.dupe(u8, std.mem.span(branch_name)),
+                .ref_type = .branch,
+            });
+        }
+    }
+
+    // Collect all tags
+    var tag_names: c.git_strarray = undefined;
+    if (c.git_tag_list(&tag_names, @ptrCast(git_repo.repo)) == 0) {
+        defer c.git_strarray_dispose(&tag_names);
+
+        for (0..tag_names.count) |i| {
+            const tag_name = tag_names.strings[i];
+
+            var ref: ?*c.git_reference = null;
+            const ref_name = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{std.mem.span(tag_name)}, 0);
+            defer ctx.allocator.free(ref_name);
+
+            if (c.git_reference_lookup(&ref, @ptrCast(git_repo.repo), ref_name) != 0) continue;
+            defer c.git_reference_free(ref);
+
+            const oid = c.git_reference_target(ref);
+            if (oid == null) continue;
+
+            // Check if it's an annotated tag
+            var target_oid = oid.*;
+            var tag_obj: ?*c.git_tag = null;
+            if (c.git_tag_lookup(&tag_obj, @ptrCast(git_repo.repo), oid) == 0) {
+                // Annotated tag - get the target commit
+                target_oid = c.git_tag_target_id(tag_obj).*;
+                c.git_object_free(@ptrCast(tag_obj));
+            }
+
+            const oid_str = try git.oidToString(&target_oid);
+            const oid_key = try ctx.allocator.dupe(u8, &oid_str);
+
+            var entry = try refs_map.getOrPut(oid_key);
+            if (!entry.found_existing) {
+                entry.value_ptr.* = std.ArrayList(RefInfo).empty;
+            } else {
+                ctx.allocator.free(oid_key); // Free the duplicate key
+            }
+
+            try entry.value_ptr.append(ctx.allocator, .{
+                .name = try ctx.allocator.dupe(u8, std.mem.span(tag_name)),
+                .ref_type = .tag,
+            });
+        }
+    }
 
     // Get starting point - prefer id (commit hash) over h (branch/ref)
     const commit_id = ctx.query.get("id");
@@ -213,6 +310,25 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
 
         // Message
         try writer.writeAll("<td>");
+
+        // Show refs (branches and tags) for this commit
+        if (refs_map.get(&oid_str)) |refs| {
+            for (refs.items) |ref_info| {
+                switch (ref_info.ref_type) {
+                    .branch => {
+                        try writer.writeAll("<span class='ref-branch'>");
+                        try html.htmlEscape(writer, ref_info.name);
+                        try writer.writeAll("</span> ");
+                    },
+                    .tag => {
+                        try writer.writeAll("<span class='ref-tag'>");
+                        try html.htmlEscape(writer, ref_info.name);
+                        try writer.writeAll("</span> ");
+                    },
+                }
+            }
+        }
+
         if (expanded) {
             // Show full commit message with preserved formatting
             try writer.writeAll("<pre class='commit-msg'>");
