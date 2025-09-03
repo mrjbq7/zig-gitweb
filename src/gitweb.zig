@@ -222,6 +222,7 @@ pub const Context = struct {
     cmd: []const u8,
     query: Query,
     env: Environment,
+    start_time: i128,
 
     pub fn init(allocator: std.mem.Allocator) !Context {
         return Context{
@@ -232,6 +233,7 @@ pub const Context = struct {
             .cmd = "",
             .query = Query.init(allocator),
             .env = Environment{},
+            .start_time = std.time.nanoTimestamp(),
         };
     }
 
