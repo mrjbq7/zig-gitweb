@@ -281,7 +281,7 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
     // Show file list with per-file stats
     const num_deltas = diff.numDeltas();
     try writer.writeAll("<div class='diff-filelist'>\n");
-    try writer.writeAll("<table>\n");
+    try writer.writeAll("<ul style='list-style: none; padding: 0; margin: 10px 0;'>\n");
 
     for (0..num_deltas) |i| {
         const delta = diff.getDelta(i).?;
@@ -304,30 +304,34 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
             deletions_count = dels;
         }
 
-        try writer.writeAll("<tr><td>");
+        try writer.writeAll("<li style='padding: 6px 0;'>");
+
+        // File info container
+        try writer.writeAll("<div style='display: flex; flex-wrap: wrap; gap: 8px; align-items: center;'>");
 
         // File name with status
+        try writer.writeAll("<div style='flex: 1 1 auto; min-width: 0; word-break: break-word;'>");
         switch (delta.*.status) {
             c.GIT_DELTA_ADDED => {
-                try writer.writeAll("<span style='color: green'>A</span> ");
+                try writer.writeAll("<span style='color: green; font-weight: bold;'>A</span> ");
                 try html.htmlEscape(writer, std.mem.span(new_file.path));
             },
             c.GIT_DELTA_DELETED => {
-                try writer.writeAll("<span style='color: red'>D</span> ");
+                try writer.writeAll("<span style='color: red; font-weight: bold;'>D</span> ");
                 try html.htmlEscape(writer, std.mem.span(old_file.path));
             },
             c.GIT_DELTA_MODIFIED => {
-                try writer.writeAll("M ");
+                try writer.writeAll("<span style='font-weight: bold;'>M</span> ");
                 try html.htmlEscape(writer, std.mem.span(new_file.path));
             },
             c.GIT_DELTA_RENAMED => {
-                try writer.writeAll("R ");
+                try writer.writeAll("<span style='font-weight: bold;'>R</span> ");
                 try html.htmlEscape(writer, std.mem.span(old_file.path));
                 try writer.writeAll(" → ");
                 try html.htmlEscape(writer, std.mem.span(new_file.path));
             },
             c.GIT_DELTA_COPIED => {
-                try writer.writeAll("C ");
+                try writer.writeAll("<span style='font-weight: bold;'>C</span> ");
                 try html.htmlEscape(writer, std.mem.span(old_file.path));
                 try writer.writeAll(" → ");
                 try html.htmlEscape(writer, std.mem.span(new_file.path));
@@ -336,17 +340,18 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
                 try html.htmlEscape(writer, std.mem.span(new_file.path));
             },
         }
+        try writer.writeAll("</div>");
 
-        try writer.writeAll("</td><td style='text-align: right; padding-left: 20px;'>");
-
-        // Show additions/deletions for this file
+        // Stats
+        try writer.writeAll("<div style='white-space: nowrap;'>");
         if (additions > 0 or deletions_count > 0) {
             try writer.print("<span style='color: green'>+{d}</span> <span style='color: red'>-{d}</span>", .{ additions, deletions_count });
         }
+        try writer.writeAll("</div>");
 
-        try writer.writeAll("</td><td style='padding-left: 20px;'>");
+        // Links
+        try writer.writeAll("<div style='white-space: nowrap;'>");
 
-        // Add links for the file
         // Use the appropriate file path based on the status
         const file_path = switch (delta.*.status) {
             c.GIT_DELTA_DELETED => std.mem.span(old_file.path),
@@ -392,10 +397,12 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
         try html.urlEncodePath(writer, file_path);
         try writer.writeAll("'>log</a>");
 
-        try writer.writeAll("</td></tr>\n");
+        try writer.writeAll("</div>");
+        try writer.writeAll("</div>");
+        try writer.writeAll("</li>\n");
     }
 
-    try writer.writeAll("</table>\n");
+    try writer.writeAll("</ul>\n");
     try writer.writeAll("</div>\n");
 
     // Show each file's diff in a separate container

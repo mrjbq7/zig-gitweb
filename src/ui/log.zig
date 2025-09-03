@@ -272,7 +272,7 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
             commit.message()
         else
             parsing.truncateString(summary, @intCast(ctx.cfg.max_msg_len));
-        
+
         // Get refs for this commit if any
         const refs = if (refs_map.get(&oid_str)) |ref_list|
             ref_list.items
@@ -281,11 +281,11 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
 
         // Start log item manually to include stats
         try writer.writeAll("<div class='log-item'>\n");
-        
+
         // First line: commit message with inline refs
         try writer.writeAll("<div class='log-message'>\n");
         try html.htmlEscape(writer, message);
-        
+
         // Show refs inline if present
         if (refs) |ref_list| {
             try writer.writeAll(" ");
@@ -304,34 +304,34 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
                 }
             }
         }
-        
+
         try writer.writeAll("</div>\n");
-        
+
         // Second line: metadata
         try writer.writeAll("<div class='log-meta'>\n");
-        
+
         // Commit hash
         try writer.writeAll("<span class='log-hash'>");
         try shared.writeCommitLink(ctx, writer, &oid_buf, oid_buf[0..7]);
         try writer.writeAll("</span>");
-        
+
         // Author
         try writer.writeAll("<span class='log-author'>");
         try html.htmlEscape(writer, parsing.truncateString(std.mem.span(author_sig.name), 20));
         try writer.writeAll("</span>");
-        
+
         // Age
         try writer.print("<span class='log-age' data-timestamp='{d}'>", .{commit_time});
         try shared.formatAge(writer, commit_time);
         try writer.writeAll("</span>");
-        
+
         // File/line statistics
         if (ctx.cfg.enable_log_filecount or ctx.cfg.enable_log_linecount) {
             const stats = try getCommitStats(&git_repo, &commit);
-            
+
             try writer.writeAll("<span class='log-stats'>");
             if (ctx.cfg.enable_log_filecount) {
-                try writer.print("{d} file{s} ", .{stats.files_changed, if (stats.files_changed == 1) "" else "s"});
+                try writer.print("{d} file{s} ", .{ stats.files_changed, if (stats.files_changed == 1) "" else "s" });
             }
             if (ctx.cfg.enable_log_linecount) {
                 try writer.print("(<span class='insertions'>+{d}</span>, ", .{stats.insertions});
@@ -339,7 +339,7 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
             }
             try writer.writeAll("</span>");
         }
-        
+
         try writer.writeAll("</div>\n"); // log-meta
         try writer.writeAll("</div>\n"); // log-item
     }

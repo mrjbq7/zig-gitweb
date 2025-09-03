@@ -6,7 +6,7 @@
 }
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    font-size: 14px;
+    font-size: 1rem;
     color: #333;
     background: white;
     padding: 0;
@@ -42,7 +42,7 @@ a:hover { text-decoration: underline; }
 }
 
 #header td.main {
-    font-size: 28px;
+    font-size: 1.75rem;
     font-weight: 600;
     padding-left: 16px;
     vertical-align: bottom;
@@ -158,14 +158,14 @@ table.list td {
 
 table.list td.age {
     color: #57606a;
-    font-size: 13px;
+    font-size: 0.9375rem;
 }
 
 /* Tree List - Compact Single-Line Layout */
 .tree-list {
     margin: 16px 0;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 13px;
+    font-size: 0.9375rem;
 }
 
 .tree-item {
@@ -218,7 +218,7 @@ table.list td.age {
 .tree-actions {
     color: #57606a;
     white-space: nowrap;
-    font-size: 12px;
+    font-size: 1rem;
 }
 
 .tree-actions a {
@@ -228,7 +228,7 @@ table.list td.age {
 /* Mobile responsive adjustments */
 @media (max-width: 768px) {
     .tree-list {
-        font-size: 12px;
+        font-size: 1rem;
     }
     
     .tree-item {
@@ -309,7 +309,7 @@ div.diff {
 
 pre.diff {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 12px;
+    font-size: 1rem;
     background: #f6f8fa;
     border: 1px solid #d1d5da;
     border-radius: 6px;
@@ -335,16 +335,13 @@ pre.diff {
 /* Diff file list */
 div.diff-filelist {
     margin: 15px 0;
-    padding: 10px;
-    background: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px;
+    padding: 0;
 }
 
 div.diff-filelist table {
     width: 100%;
     font-family: monospace;
-    font-size: 14px;
+    font-size: 1rem;
 }
 
 div.diff-filelist td {
@@ -363,7 +360,7 @@ div.diff-file-header {
     background: #f1f8ff;
     border-bottom: 1px solid #d1d5da;
     padding: 10px 16px;
-    font-size: 14px;
+    font-size: 1rem;
     font-weight: 600;
 }
 
@@ -380,7 +377,7 @@ div.tree {
 
 td.mode {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 13px;
+    font-size: 0.9375rem;
 }
 
 div.path {
@@ -390,13 +387,13 @@ div.path {
     border: 1px solid #d1d5da;
     border-radius: 6px;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 13px;
+    font-size: 0.9375rem;
 }
 
 /* Blob view */
 pre.blob {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 12px;
+    font-size: 1rem;
     background: #f6f8fa;
     border: 1px solid #d1d5da;
     border-radius: 6px;
@@ -425,7 +422,7 @@ table.blame {
 table.blame td {
     padding: 2px 8px;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 12px;
+    font-size: 1rem;
     vertical-align: top;
 }
 
@@ -469,7 +466,7 @@ table.blame td.code {
 }
 
 .log-item {
-    padding: 8px 16px;
+    padding: 6px 16px 8px 16px;
     border-bottom: 1px solid #e1e4e8;
     transition: background-color 0.2s;
 }
@@ -479,11 +476,10 @@ table.blame td.code {
 }
 
 .log-message {
-    font-size: 14px;
+    font-size: 1rem;
     line-height: 1.4;
     color: #24292e;
     margin-bottom: 4px;
-    white-space: pre-wrap;
     word-wrap: break-word;
 }
 
@@ -491,7 +487,7 @@ table.blame td.code {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 13px;
+    font-size: 0.9375rem;
     color: #57606a;
 }
 
@@ -513,8 +509,8 @@ table.blame td.code {
 
 .log-stats {
     white-space: nowrap;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 12px;
+    font-size: 0.9375rem;
+    color: #57606a;
 }
 
 .log-stats .insertions {
@@ -528,13 +524,13 @@ table.blame td.code {
 /* Mobile responsive */
 @media (max-width: 768px) {
     .log-item {
-        padding: 6px 12px;
+        padding: 6px 12px 8px 12px;
     }
     
     .log-meta {
         flex-wrap: wrap;
         gap: 8px;
-        font-size: 12px;
+        font-size: 1rem;
     }
     
     .log-author {
@@ -544,12 +540,12 @@ table.blame td.code {
 }
 
 div.log h2 {
-    margin-bottom: 16px;
+    margin-bottom: 8px;
 }
 
 div.log-controls {
-    margin-bottom: 12px;
-    padding: 8px 12px;
+    margin-bottom: 8px;
+    padding: 4px 12px;
     background: #f6f8fa;
     border: 1px solid #d1d5da;
     border-radius: 6px;
@@ -571,9 +567,9 @@ pre.commit-msg {
 }
 
 td.log-stats {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 13px;
+    font-size: 0.9375rem;
     white-space: nowrap;
+    color: #57606a;
 }
 
 td.log-stats .insertions {
@@ -588,7 +584,7 @@ td.log-stats .deletions {
 .ref-branch, .ref-tag, span.ref-branch, span.ref-tag {
     display: inline-block;
     padding: 2px 6px;
-    font-size: 12px;
+    font-size: 1rem;
     font-weight: 500;
     border-radius: 3px;
     margin-right: 4px;
@@ -635,7 +631,7 @@ td.log-stats .deletions {
 }
 
 .refs-name {
-    font-size: 14px;
+    font-size: 1rem;
     font-weight: 500;
 }
 
@@ -645,13 +641,13 @@ td.log-stats .deletions {
 
 .refs-remote {
     color: #57606a;
-    font-size: 12px;
+    font-size: 1rem;
 }
 
 .refs-head {
     display: inline-block;
     padding: 2px 6px;
-    font-size: 11px;
+    font-size: 0.8125rem;
     font-weight: 500;
     background: #fef2c0;
     color: #735c0f;
@@ -662,7 +658,7 @@ td.log-stats .deletions {
 .refs-annotated-badge {
     display: inline-block;
     padding: 2px 6px;
-    font-size: 11px;
+    font-size: 0.8125rem;
     font-weight: 500;
     background: #e1f5fe;
     color: #01579b;
@@ -671,7 +667,7 @@ td.log-stats .deletions {
 }
 
 .refs-message {
-    font-size: 13px;
+    font-size: 0.9375rem;
     color: #586069;
     margin-bottom: 4px;
     overflow: hidden;
@@ -680,13 +676,13 @@ td.log-stats .deletions {
 }
 
 .refs-download {
-    font-size: 12px;
+    font-size: 1rem;
 }
 
 .refs-meta {
     display: flex;
     gap: 12px;
-    font-size: 12px;
+    font-size: 1rem;
     color: #57606a;
 }
 
@@ -762,7 +758,7 @@ td.log-stats .deletions {
 }
 
 .summary-branch-name, .summary-tag-name {
-    font-size: 14px;
+    font-size: 1rem;
     font-weight: 500;
 }
 
@@ -773,7 +769,7 @@ td.log-stats .deletions {
 .summary-branch-head {
     display: inline-block;
     padding: 2px 6px;
-    font-size: 11px;
+    font-size: 0.8125rem;
     font-weight: 500;
     background: #fef2c0;
     color: #735c0f;
@@ -782,7 +778,7 @@ td.log-stats .deletions {
 }
 
 .summary-branch-message, .summary-tag-message {
-    font-size: 13px;
+    font-size: 0.9375rem;
     color: #586069;
     margin-bottom: 4px;
     overflow: hidden;
@@ -791,7 +787,7 @@ td.log-stats .deletions {
 }
 
 .summary-tag-download {
-    font-size: 12px;
+    font-size: 1rem;
 }
 
 .summary-tag-download a {
@@ -801,7 +797,7 @@ td.log-stats .deletions {
 .summary-branch-meta, .summary-tag-meta {
     display: flex;
     gap: 12px;
-    font-size: 12px;
+    font-size: 1rem;
     color: #57606a;
 }
 
@@ -837,7 +833,7 @@ td.log-stats .deletions {
 }
 
 .summary-commit-message {
-    font-size: 14px;
+    font-size: 1rem;
     line-height: 1.4;
     color: #24292e;
     margin-bottom: 4px;
@@ -847,7 +843,7 @@ td.log-stats .deletions {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 13px;
+    font-size: 0.9375rem;
     color: #57606a;
 }
 
@@ -886,7 +882,7 @@ td.log-stats .deletions {
     .summary-branch-meta, .summary-tag-meta, .summary-commit-meta {
         flex-wrap: wrap;
         gap: 8px;
-        font-size: 12px;
+        font-size: 1rem;
     }
 }
 
@@ -914,7 +910,7 @@ td.log-stats .deletions {
 }
 
 .repo-name {
-    font-size: 16px;
+    font-size: 1rem;
     font-weight: 600;
     margin-bottom: 4px;
 }
@@ -924,7 +920,7 @@ td.log-stats .deletions {
 }
 
 .repo-description {
-    font-size: 14px;
+    font-size: 1rem;
     color: #57606a;
     margin-top: 4px;
     overflow: hidden;
@@ -936,7 +932,7 @@ td.log-stats .deletions {
     display: flex;
     align-items: center;
     gap: 16px;
-    font-size: 13px;
+    font-size: 0.9375rem;
     color: #57606a;
 }
 
@@ -956,7 +952,7 @@ td.log-stats .deletions {
     padding: 40px;
     text-align: center;
     color: #57606a;
-    font-size: 14px;
+    font-size: 1rem;
 }
 
 /* Mobile responsive */
@@ -975,7 +971,7 @@ td.log-stats .deletions {
     .repo-meta {
         width: 100%;
         justify-content: space-between;
-        font-size: 12px;
+        font-size: 1rem;
     }
     
     .repo-description {
@@ -990,7 +986,7 @@ div.footer {
     padding: 20px 16px;
     border-top: 1px solid #d1d5da;
     color: #57606a;
-    font-size: 12px;
+    font-size: 1rem;
     text-align: center;
 }
 
@@ -999,7 +995,7 @@ input[type="text"], input[type="search"], select {
     padding: 5px 12px;
     border: 1px solid #d1d5da;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 1rem;
     background: white;
 }
 
@@ -1015,7 +1011,7 @@ input[type="submit"], button {
     color: white;
     border: 1px solid rgba(27, 31, 35, 0.15);
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 1rem;
     font-weight: 500;
     cursor: pointer;
 }
@@ -1082,7 +1078,7 @@ div.stats-summary {
 /* Hex dump table */
 .hex-dump-table {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 13px;
+    font-size: 0.9375rem;
     width: 100%;
     border-collapse: collapse;
 }
@@ -1142,7 +1138,7 @@ div.search-input input[type="text"] {
     padding: 8px 12px;
     border: 1px solid #d1d5da;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 1rem;
 }
 
 div.search-input select {
@@ -1150,7 +1146,7 @@ div.search-input select {
     border: 1px solid #d1d5da;
     border-radius: 4px;
     background: white;
-    font-size: 14px;
+    font-size: 1rem;
 }
 
 div.search-input input[type="submit"] {
@@ -1160,7 +1156,7 @@ div.search-input input[type="submit"] {
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 1rem;
 }
 
 div.search-input input[type="submit"]:hover {
@@ -1193,7 +1189,7 @@ table.search-results tr:hover {
 
 table.search-results code {
     font-family: 'SFMono-Regular', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 12px;
+    font-size: 1rem;
     background: #f6f8fa;
     padding: 2px 4px;
     border-radius: 3px;
@@ -1217,7 +1213,7 @@ table.search-results code {
     bottom: 125%;
     left: 50%;
     margin-left: -60px;
-    font-size: 12px;
+    font-size: 1rem;
     white-space: nowrap;
 }
 
@@ -1249,7 +1245,7 @@ table.ssdiff {
 table.ssdiff td {
     padding: 2px 8px;
     font-family: 'SFMono-Regular', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 12px;
+    font-size: 1rem;
     line-height: 1.4;
     vertical-align: top;
     white-space: pre;
@@ -1567,7 +1563,7 @@ table.ssdiff tr:hover {
     }
     
     table.list {
-        font-size: 12px;
+        font-size: 1rem;
     }
     
     table.list th, table.list td {
@@ -1575,7 +1571,7 @@ table.ssdiff tr:hover {
     }
     
     #header td.main {
-        font-size: 20px;
+        font-size: 1.25rem;
     }
     
     .branch-selector {

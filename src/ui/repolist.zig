@@ -103,16 +103,16 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
                         break :blk null;
                     };
                     defer git_repo.close();
-                    
+
                     var walk = git_repo.revwalk() catch {
                         break :blk null;
                     };
                     defer walk.free();
-                    
+
                     walk.pushHead() catch {
                         break :blk null;
                     };
-                    
+
                     if (walk.next()) |oid| {
                         var commit = git_repo.lookupCommit(&oid) catch {
                             break :blk null;
@@ -122,7 +122,7 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
                     }
                     break :blk null;
                 };
-                
+
                 try repos.append(ctx.allocator, RepoInfo{
                     .name = try ctx.allocator.dupe(u8, repo_name),
                     .description = description,
@@ -143,27 +143,27 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
         // Display sorted repositories
         for (repos.items) |repo| {
             try writer.writeAll("<div class='repo-item'>\n");
-            
+
             // Repository name and description
             try writer.writeAll("<div class='repo-main'>\n");
-            
+
             // Name
             try writer.writeAll("<div class='repo-name'>\n");
             try writer.print("<a href='?r={s}'>{s}</a>", .{ repo.name, repo.name });
             try writer.writeAll("</div>\n");
-            
+
             // Description
             if (repo.description.len > 0) {
                 try writer.writeAll("<div class='repo-description'>\n");
                 try html.htmlEscape(writer, repo.description);
                 try writer.writeAll("</div>\n");
             }
-            
+
             try writer.writeAll("</div>\n"); // repo-main
-            
+
             // Metadata
             try writer.writeAll("<div class='repo-meta'>\n");
-            
+
             // Last activity
             if (repo.last_commit_time) |commit_time| {
                 try writer.writeAll("<span class='repo-activity'>\n");
@@ -171,7 +171,7 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
                 try shared.formatAge(writer, commit_time);
                 try writer.writeAll("</span>\n");
             }
-            
+
             // Actions
             try writer.writeAll("<span class='repo-actions'>\n");
             try writer.print("<a href='?r={s}&cmd=summary'>summary</a>", .{repo.name});
@@ -180,7 +180,7 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
             try writer.writeAll(" | ");
             try writer.print("<a href='?r={s}&cmd=tree'>tree</a>", .{repo.name});
             try writer.writeAll("</span>\n");
-            
+
             try writer.writeAll("</div>\n"); // repo-meta
             try writer.writeAll("</div>\n"); // repo-item
         }

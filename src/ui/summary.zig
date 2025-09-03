@@ -82,11 +82,11 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
         if (!branch.is_remote) {
             const target = @constCast(&branch.ref).target() orelse continue;
             const oid_str = try git.oidToString(target);
-            
+
             // Make a copy of the OID string for the map key
             const key = try ctx.allocator.dupe(u8, oid_str[0..40]);
             errdefer ctx.allocator.free(key);
-            
+
             const result = try refs_map.getOrPut(key);
             if (!result.found_existing) {
                 result.value_ptr.* = std.ArrayList(shared.CommitItemInfo.RefInfo).empty;
@@ -114,11 +114,11 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
     for (tags) |tag| {
         const target = @constCast(&tag.ref).target() orelse continue;
         const oid_str = try git.oidToString(target);
-        
+
         // Make a copy of the OID string for the map key
         const key = try ctx.allocator.dupe(u8, oid_str[0..40]);
         errdefer ctx.allocator.free(key);
-        
+
         const result = try refs_map.getOrPut(key);
         if (!result.found_existing) {
             result.value_ptr.* = std.ArrayList(shared.CommitItemInfo.RefInfo).empty;
@@ -170,7 +170,7 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
         @memcpy(&oid_buf, oid_str[0..40]);
 
         const truncated = parsing.truncateString(commit_summary, @intCast(ctx.cfg.max_msg_len));
-        
+
         // Get refs for this commit if any
         const refs = if (refs_map.get(&oid_str)) |ref_list|
             ref_list.items

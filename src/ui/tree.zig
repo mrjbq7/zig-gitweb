@@ -185,9 +185,9 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         const entry_type = c.git_tree_entry_type(@as(?*const c.git_tree_entry, entry));
         const entry_mode = c.git_tree_entry_filemode(@as(?*const c.git_tree_entry, entry));
         const entry_oid = c.git_tree_entry_id(@as(?*const c.git_tree_entry, entry));
-        
+
         const is_dir = entry_type == c.GIT_OBJECT_TREE;
-        
+
         // Start tree item
         try writer.writeAll("<div class='tree-item");
         if (is_dir) {
@@ -206,19 +206,19 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         try writer.writeAll("<span class='tree-mode'>");
         try writer.writeAll(git.getFileMode(entry_mode));
         try writer.writeAll("</span>");
-        
+
         // Name link
         try writer.writeAll("<a class='tree-name' href='?");
         if (ctx.repo) |r| {
             try writer.print("r={s}&", .{r.name});
         }
-        
+
         if (is_dir) {
             try writer.writeAll("cmd=tree");
         } else {
             try writer.writeAll("cmd=blob");
         }
-        
+
         // Preserve commit ID or branch
         if (ctx.query.get("id")) |id| {
             try writer.print("&id={s}", .{id});
@@ -257,7 +257,7 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         // Actions
         try writer.writeAll("<span class='tree-actions'>");
         try writer.writeAll("[");
-        
+
         // Log link
         try writer.writeAll("<a href='?");
         if (ctx.repo) |r| {
@@ -273,7 +273,7 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         try writer.writeAll("&path=");
         try html.urlEncodePath(writer, full_path);
         try writer.writeAll("'>log</a>");
-        
+
         // Blame link for files
         if (!is_dir) {
             try writer.writeAll(" | ");
@@ -291,7 +291,7 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
             try html.urlEncodePath(writer, full_path);
             try writer.writeAll("'>blame</a>");
         }
-        
+
         try writer.writeAll("]</span>");
         try writer.writeAll("</div>\n"); // tree-item
     }

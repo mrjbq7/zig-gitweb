@@ -50,6 +50,22 @@ QUERY_STRING="r=factor" REQUEST_METHOD=GET ./zig-out/bin/gitweb.cgi
    - Each command has a corresponding handler (e.g., `log.zig`, `commit.zig`)
    - Handlers generate HTML output directly to writer
    - Use shared utilities for common elements
+   - Additional handlers: `tree.zig`, `diff.zig`, `refs.zig`, `blame.zig`, `stats.zig`, `snapshot.zig`, `search.zig`, `tag.zig`, `blob.zig`, `plain.zig`, `patch.zig`, `atom.zig`, `clone.zig`, `repolist.zig`
+
+6. **HTML Generation** (`src/html.zig`)
+   - Provides `writeHeader()` and `writeFooter()` for consistent page structure
+   - Handles navigation tabs, branch selector, and page metadata
+   - Includes viewport meta tag for mobile responsiveness
+
+7. **Configuration** (`src/config.zig`, `src/configfile.zig`)
+   - Configuration system for CGI settings
+   - Repository configuration parsing
+   - Customizable paths, URLs, and display options
+
+8. **Parsing Utilities** (`src/parsing.zig`)
+   - Query string parsing
+   - URL encoding/decoding
+   - Timestamp formatting
 
 ### Key Design Patterns
 
@@ -101,9 +117,12 @@ To test the CGI with a git repository:
 ## Static Files
 
 Located in `static/`:
-- `gitweb.css` - Stylesheet
-- `gitweb.js` - JavaScript (if needed)
+- `gitweb.css` - Stylesheet (1583 lines)
+- `gitweb.js` - JavaScript for UI interactions
+- `chart.js` - Chart library for stats visualization
 - `robots.txt` - Search engine directives
+- `favicon*.png` - Favicon in multiple sizes
+- `gitweb.png` - Logo image
 
 ## Dependencies
 
@@ -115,3 +134,37 @@ On macOS with Homebrew:
 ```bash
 brew install libgit2
 ```
+
+## Refactoring Opportunities
+
+### Code Duplication Issues
+The codebase has significant duplication across UI handlers (~400-500 duplicated lines):
+
+1. **Repository opening pattern** - Repeated in 10+ files
+2. **Commit/reference resolution** - Complex logic duplicated 6+ times  
+3. **Branch/tag collection** - 50+ lines repeated in multiple handlers
+4. **URL generation with parameters** - Duplicated URL building logic
+5. **Path navigation in git trees** - Tree traversal code repeated
+
+### CSS Optimization
+The CSS file (1583 lines) has opportunities for cleanup:
+
+1. **Unused classes** - ~57 classes defined but never used (mostly syntax highlighting)
+2. **Missing definitions** - ~30 classes used in code but not styled
+3. **Color repetition** - Color `#f6f8fa` used 24+ times (could use CSS variables)
+4. **Unused dark mode** - Complete dark mode styles with no toggle mechanism
+
+### Recommended Refactorings
+
+1. **Extract common UI functions to `shared.zig`:**
+   - `openRepositoryOrError()` - Handle repo opening with error display
+   - `resolveCommitFromQuery()` - Parse and resolve commit references
+   - `collectRefsMap()` - Build branch/tag reference mappings
+   - `writeUrlBase()` - Generate consistent URL structures
+   - `navigateToPath()` - Tree navigation helper
+
+2. **CSS consolidation:**
+   - Remove unused syntax highlighting classes
+   - Add missing class definitions for error handling
+   - Introduce CSS custom properties for repeated values
+   - Consider removing dark mode if not planned

@@ -128,7 +128,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
             // For remote branches, add prefix to the name
             const prefixed_name = try std.fmt.allocPrint(ctx.allocator, "remotes/{s}", .{branch.name});
             defer ctx.allocator.free(prefixed_name);
-            
+
             try shared.writeBranchItem(ctx, writer, shared.BranchItemInfo{
                 .name = prefixed_name,
                 .is_head = branch.is_head,
