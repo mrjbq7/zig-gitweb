@@ -41,26 +41,20 @@ pub fn loadConfig(ctx: *gitweb.Context) !void {
     // std.debug.print("Attempting to load config from: {s}\n", .{config_file});
 
     // Try to open and parse config file
-    const opened_file = if (std.fs.path.isAbsolute(config_file))
-        std.fs.openFileAbsolute(config_file, .{}) catch |err| {
-            if (err == error.FileNotFound) {
-                // Config file is optional, use defaults
-                // std.debug.print("Config file not found at {s}, using defaults\n", .{config_file});
-                return;
-            }
-            // std.debug.print("Error opening config file: {}\n", .{err});
-            return err;
-        }
+    const file = if (std.fs.path.isAbsolute(config_file))
+        std.fs.openFileAbsolute(config_file, .{})
     else
-        std.fs.cwd().openFile(config_file, .{}) catch |err| {
-            if (err == error.FileNotFound) {
-                // Config file is optional, use defaults
-                // std.debug.print("Config file not found at {s}, using defaults\n", .{config_file});
-                return;
-            }
-            // std.debug.print("Error opening config file: {}\n", .{err});
-            return err;
-        };
+        std.fs.cwd().openFile(config_file, .{});
+
+    const opened_file = file catch |err| {
+        if (err == error.FileNotFound) {
+            // Config file is optional, use defaults
+            // std.debug.print("Config file not found at {s}, using defaults\n", .{config_file});
+            return;
+        }
+        // std.debug.print("Error opening config file: {}\n", .{err});
+        return err;
+    };
     defer opened_file.close();
 
     // std.debug.print("Successfully opened config file: {s}\n", .{config_file});

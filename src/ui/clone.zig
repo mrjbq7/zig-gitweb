@@ -5,6 +5,7 @@ const git = @import("../git.zig");
 const c = @cImport({
     @cInclude("git2.h");
     @cInclude("unistd.h");
+    @cInclude("sys/wait.h");
 });
 
 pub fn info(ctx: *gitweb.Context, writer: anytype) !void {
