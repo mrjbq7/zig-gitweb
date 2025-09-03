@@ -169,7 +169,9 @@ pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) 
             } else if (ctx.query.get("h")) |branch| {
                 try writer.print("&h={s}", .{branch});
             }
-            try writer.print("&path={s}'>", .{accumulated.items});
+            try writer.writeAll("&path=");
+            try html.urlEncodePath(writer, accumulated.items);
+            try writer.writeAll("'>");
             try html.htmlEscape(writer, segment);
             try writer.writeAll("</a>");
         } else {

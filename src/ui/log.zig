@@ -43,7 +43,8 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
                 try writer.print("&h={s}", .{h});
             }
             if (path) |p| {
-                try writer.print("&path={s}", .{p});
+                try writer.writeAll("&path=");
+                try html.urlEncodePath(writer, p);
             }
             try writer.writeAll("'>Collapse</a>\n");
         } else {
@@ -54,7 +55,8 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
                 try writer.print("&h={s}", .{h});
             }
             if (path) |p| {
-                try writer.print("&path={s}", .{p});
+                try writer.writeAll("&path=");
+                try html.urlEncodePath(writer, p);
             }
             try writer.writeAll("'>Expand</a>\n");
         }

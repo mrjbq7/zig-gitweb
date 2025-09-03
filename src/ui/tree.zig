@@ -87,7 +87,9 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
 
             if (c.git_tree_entry_type(@ptrCast(entry)) != c.GIT_OBJECT_TREE) {
                 // This is a blob, redirect to blob view
-                try writer.print("<script>window.location='?cmd=blob&path={s}';</script>", .{path});
+                try writer.writeAll("<script>window.location='?cmd=blob&path=");
+                try html.urlEncodePath(writer, path);
+                try writer.writeAll("';</script>");
                 try writer.writeAll("</div>\n");
                 return;
             }

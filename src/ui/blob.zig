@@ -155,7 +155,9 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
-    try writer.print("cmd=plain&path={s}'>View Raw</a>", .{path});
+    try writer.writeAll("cmd=plain&path=");
+    try html.urlEncodePath(writer, path);
+    try writer.writeAll("'>View Raw</a>");
 
     try writer.writeAll(" | ");
 
@@ -171,7 +173,9 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
     } else if (ctx.query.get("h")) |h| {
         try writer.print("&h={s}", .{h});
     }
-    try writer.print("&path={s}'>Blame</a>", .{path});
+    try writer.writeAll("&path=");
+    try html.urlEncodePath(writer, path);
+    try writer.writeAll("'>Blame</a>");
 
     try writer.writeAll("</div>\n");
 
@@ -220,7 +224,9 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, size: u64, writer: 
         if (ctx.repo) |r| {
             try writer.print("r={s}&", .{r.name});
         }
-        try writer.print("cmd=plain&path={s}' alt='{s}' style='max-width: 100%;' />\n", .{ path, std.fs.path.basename(path) });
+        try writer.writeAll("cmd=plain&path=");
+        try html.urlEncodePath(writer, path);
+        try writer.print("' alt='{s}' style='max-width: 100%;' />\n", .{std.fs.path.basename(path)});
     } else {
         // Show download link
         try writer.writeAll("<p>Binary file cannot be displayed.</p>\n");
@@ -228,7 +234,9 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, size: u64, writer: 
         if (ctx.repo) |r| {
             try writer.print("r={s}&", .{r.name});
         }
-        try writer.print("cmd=plain&path={s}' download>Download ({s}, ", .{ path, mime_type });
+        try writer.writeAll("cmd=plain&path=");
+        try html.urlEncodePath(writer, path);
+        try writer.print("' download>Download ({s}, ", .{mime_type});
         try parsing.formatFileSize(size, writer);
         try writer.writeAll(")</a>\n");
     }

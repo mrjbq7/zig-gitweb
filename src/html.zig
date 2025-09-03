@@ -152,7 +152,8 @@ fn writeTab(writer: anytype, name: []const u8, cmd: []const u8, current_cmd: []c
             try writer.print("&h={s}", .{b});
         }
         if (path) |p| {
-            try writer.print("&path={s}", .{p});
+            try writer.writeAll("&path=");
+            try urlEncodePath(writer, p);
         }
         try writer.print("'>{s}</a>", .{name});
     } else {
@@ -161,7 +162,8 @@ fn writeTab(writer: anytype, name: []const u8, cmd: []const u8, current_cmd: []c
             try writer.print("&h={s}", .{b});
         }
         if (path) |p| {
-            try writer.print("&path={s}", .{p});
+            try writer.writeAll("&path=");
+            try urlEncodePath(writer, p);
         }
         try writer.print("'>{s}</a>", .{name});
     }

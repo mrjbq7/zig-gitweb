@@ -445,7 +445,8 @@ fn renderGrepResult(ctx: *gitweb.Context, file_path: []const u8, line_num: usize
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
-    try writer.print("cmd=blob&path={s}", .{file_path});
+    try writer.writeAll("cmd=blob&path=");
+    try html.urlEncodePath(writer, file_path);
     if (ctx.query.get("h")) |h| {
         try writer.print("&h={s}", .{h});
     }
