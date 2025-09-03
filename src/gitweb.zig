@@ -500,18 +500,29 @@ pub const Page = struct {
 
 pub const Query = struct {
     params: std.StringHashMap([]const u8),
+    allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Query {
         return Query{
             .params = std.StringHashMap([]const u8).init(allocator),
+            .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Query) void {
+        // Free all the allocated values
+        var iter = self.params.iterator();
+        while (iter.next()) |entry| {
+            self.allocator.free(entry.value_ptr.*);
+        }
         self.params.deinit();
     }
 
     pub fn set(self: *Query, key: []const u8, value: []const u8) !void {
+        // If there's an existing value, free it first
+        if (self.params.get(key)) |old_value| {
+            self.allocator.free(old_value);
+        }
         try self.params.put(key, value);
     }
 
