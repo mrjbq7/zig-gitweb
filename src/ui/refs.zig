@@ -32,9 +32,7 @@ pub fn refs(ctx: *gitweb.Context, writer: anytype) !void {
 
 fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void {
     try writer.writeAll("<h2>Branches</h2>\n");
-
-    const headers = [_][]const u8{ "Branch", "Commit", "Author", "Message", "Age" };
-    try html.writeTableHeader(writer, &headers);
+    try writer.writeAll("<div class='refs-list'>\n");
 
     // Structure to hold branch information
     const BranchInfo = struct {
@@ -125,62 +123,42 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
     }.lessThan);
 
     // Display sorted branches
-    for (branches.items, 0..) |branch, i| {
-        try html.writeTableRow(writer, if (i % 2 == 0) "even" else null);
-
-        // Branch name (with remote indicator)
-        try writer.writeAll("<td>");
+    for (branches.items) |branch| {
         if (branch.branch_type == c.GIT_BRANCH_REMOTE) {
-            try writer.writeAll("<span style='color: #666'>remote/</span>");
-        }
-        if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=log&h={s}'>{s}</a>", .{ r.name, branch.name, branch.name });
+            // For remote branches, add prefix to the name
+            const prefixed_name = try std.fmt.allocPrint(ctx.allocator, "remotes/{s}", .{branch.name});
+            defer ctx.allocator.free(prefixed_name);
+            
+            try shared.writeBranchItem(ctx, writer, shared.BranchItemInfo{
+                .name = prefixed_name,
+                .is_head = branch.is_head,
+                .oid_str = branch.oid_str,
+                .author_name = branch.author_name,
+                .message = branch.message,
+                .timestamp = branch.timestamp,
+            }, "refs");
         } else {
-            try writer.print("<a href='?cmd=log&h={s}'>{s}</a>", .{ branch.name, branch.name });
+            try shared.writeBranchItem(ctx, writer, shared.BranchItemInfo{
+                .name = branch.name,
+                .is_head = branch.is_head,
+                .oid_str = branch.oid_str,
+                .author_name = branch.author_name,
+                .message = branch.message,
+                .timestamp = branch.timestamp,
+            }, "refs");
         }
-
-        // Show if this is the current branch
-        if (branch.is_head) {
-            try writer.writeAll(" <strong>(HEAD)</strong>");
-        }
-        try writer.writeAll("</td>");
-
-        // Commit hash
-        try writer.writeAll("<td>");
-        try shared.writeCommitLink(ctx, writer, &branch.oid_str, branch.oid_str[0..7]);
-        try writer.writeAll("</td>");
-
-        // Author
-        try writer.writeAll("<td>");
-        try html.htmlEscape(writer, parsing.truncateString(branch.author_name, 30));
-        try writer.writeAll("</td>");
-
-        // Message
-        try writer.writeAll("<td>");
-        const truncated = parsing.truncateString(branch.message, 50);
-        try html.htmlEscape(writer, truncated);
-        try writer.writeAll("</td>");
-
-        // Age
-        try writer.writeAll("<td class='age'>");
-        try shared.formatAge(writer, branch.timestamp);
-        try writer.writeAll("</td>");
-
-        try writer.writeAll("</tr>\n");
     }
 
     if (branches.items.len == 0) {
-        try writer.writeAll("<tr><td colspan='5'>No branches found</td></tr>\n");
+        try writer.writeAll("<div class='refs-empty'>No branches found</div>\n");
     }
 
-    try html.writeTableFooter(writer);
+    try writer.writeAll("</div>\n"); // refs-list
 }
 
 fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void {
     try writer.writeAll("<h2>Tags</h2>\n");
-
-    const headers = [_][]const u8{ "Tag", "Download", "Author", "Message", "Age" };
-    try html.writeTableHeader(writer, &headers);
+    try writer.writeAll("<div class='refs-list'>\n");
 
     // Get all tags
     var tag_names: c.git_strarray = undefined;
@@ -272,75 +250,46 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
     }.lessThan);
 
     // Display tags
-    for (tags.items, 0..) |tag, i| {
-        try html.writeTableRow(writer, if (i % 2 == 0) "even" else null);
+    for (tags.items) |tag| {
+        // Get OID string for the tag
+        const oid_str = try git.oidToString(@ptrCast(&tag.target_oid));
+        var oid_buf: [40]u8 = undefined;
+        @memcpy(&oid_buf, oid_str[0..40]);
 
-        // Tag name
-        try writer.writeAll("<td>");
-        if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=tag&h={s}'>{s}</a>", .{ r.name, tag.name, tag.name });
-        } else {
-            try writer.print("<a href='?cmd=tag&h={s}'>{s}</a>", .{ tag.name, tag.name });
-        }
-
-        // Show if annotated
-        if (tag.tag_obj != null) {
-            try writer.writeAll(" <span style='color: #666'>(annotated)</span>");
-        }
-        try writer.writeAll("</td>");
-
-        // Download links
-        try writer.writeAll("<td>");
-        if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{ r.name, tag.name });
-            try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{ r.name, tag.name });
-        } else {
-            try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{tag.name});
-            try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{tag.name});
-        }
-        try writer.writeAll("</td>");
-
-        // Author/Tagger
-        try writer.writeAll("<td>");
-        if (tag.tag_obj != null and tag.tagger_name.len > 0) {
-            try html.htmlEscape(writer, parsing.truncateString(tag.tagger_name, 30));
-        } else {
-            // For lightweight tags, show commit author
-            var commit = repo.lookupCommit(&tag.target_oid) catch {
-                try writer.writeAll("-");
-                try writer.writeAll("</td><td>-</td><td>-</td></tr>\n");
-                continue;
+        // Determine the author name
+        const author_name = if (tag.tag_obj != null and tag.tagger_name.len > 0)
+            tag.tagger_name
+        else blk: {
+            // For lightweight tags, get commit author
+            var commit = repo.lookupCommit(@as(*const git.c.git_oid, @ptrCast(&tag.target_oid))) catch {
+                break :blk "-";
             };
             defer commit.free();
-
             const author = commit.author();
-            try html.htmlEscape(writer, parsing.truncateString(std.mem.span(author.name), 30));
-        }
-        try writer.writeAll("</td>");
+            break :blk std.mem.span(author.name);
+        };
 
-        // Message
-        try writer.writeAll("<td>");
-        const truncated = parsing.truncateString(tag.commit_message, 50);
-        try html.htmlEscape(writer, truncated);
-        try writer.writeAll("</td>");
+        // Create tag name with annotated badge if applicable
+        const display_name = if (tag.tag_obj != null)
+            try std.fmt.allocPrint(ctx.allocator, "{s} <span class='refs-annotated-badge'>annotated</span>", .{tag.name})
+        else
+            tag.name;
+        defer if (tag.tag_obj != null) ctx.allocator.free(display_name);
 
-        // Age
-        try writer.writeAll("<td class='age'>");
-        if (tag.tagger_time > 0) {
-            try shared.formatAge(writer, tag.tagger_time);
-        } else {
-            try writer.writeAll("-");
-        }
-        try writer.writeAll("</td>");
-
-        try writer.writeAll("</tr>\n");
+        try shared.writeTagItem(ctx, writer, shared.TagItemInfo{
+            .name = tag.name,
+            .oid_str = oid_buf,
+            .author_name = author_name,
+            .message = tag.commit_message,
+            .timestamp = if (tag.tagger_time > 0) tag.tagger_time else 0,
+        }, "refs");
     }
 
     if (tags.items.len == 0) {
-        try writer.writeAll("<tr><td colspan='5'>No tags found</td></tr>\n");
+        try writer.writeAll("<div class='refs-empty'>No tags found</div>\n");
     }
 
-    try html.writeTableFooter(writer);
+    try writer.writeAll("</div>\n"); // refs-list
 }
 
 const TagInfo = struct {

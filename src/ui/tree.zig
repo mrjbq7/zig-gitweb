@@ -8,7 +8,12 @@ const parsing = @import("../parsing.zig");
 const c = git.c;
 
 pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
-    const repo = ctx.repo orelse return error.NoRepo;
+    const repo = ctx.repo orelse {
+        try writer.writeAll("<div class='error'>\n");
+        try writer.writeAll("<p>No repository specified.</p>\n");
+        try writer.writeAll("</div>\n");
+        return;
+    };
 
     try writer.writeAll("<div class='tree'>\n");
 
@@ -115,14 +120,13 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *git.Tree, base_path: []const u8, writer: anytype) !void {
-    const headers = [_][]const u8{ "Mode", "Name", "Size", "" };
-    try html.writeTableHeader(writer, &headers);
+    // Mobile-friendly card-based layout
+    try writer.writeAll("<div class='tree-list'>\n");
 
     // Parent directory link
     if (base_path.len > 0) {
-        try html.writeTableRow(writer, null);
-        try writer.writeAll("<td class='mode'>d---------</td>");
-        try writer.writeAll("<td colspan='3'><a href='?");
+        try writer.writeAll("<div class='tree-item tree-parent'>");
+        try writer.writeAll("<a href='?");
         if (ctx.repo) |r| {
             try writer.print("r={s}&", .{r.name});
         }
@@ -142,8 +146,8 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
                 try html.urlEncodePath(writer, base_path[0..pos]);
             }
         }
-        try writer.writeAll("'>..</a></td>");
-        try writer.writeAll("</tr>\n");
+        try writer.writeAll("'><span class='tree-name'>..</span></a>");
+        try writer.writeAll("</div>\n");
     }
 
     const count = tree_obj.entryCount();
@@ -181,16 +185,15 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         const entry_type = c.git_tree_entry_type(@as(?*const c.git_tree_entry, entry));
         const entry_mode = c.git_tree_entry_filemode(@as(?*const c.git_tree_entry, entry));
         const entry_oid = c.git_tree_entry_id(@as(?*const c.git_tree_entry, entry));
-
-        try html.writeTableRow(writer, null);
-
-        // Mode
-        try writer.writeAll("<td class='mode'>");
-        try writer.writeAll(git.getFileMode(entry_mode));
-        try writer.writeAll("</td>");
-
-        // Name
-        try writer.writeAll("<td>");
+        
+        const is_dir = entry_type == c.GIT_OBJECT_TREE;
+        
+        // Start tree item
+        try writer.writeAll("<div class='tree-item");
+        if (is_dir) {
+            try writer.writeAll(" tree-dir");
+        }
+        try writer.writeAll("'>");
         const full_path = if (base_path.len > 0)
             try std.fmt.allocPrint(ctx.allocator, "{s}/{s}", .{ base_path, entry_name })
         else
@@ -199,47 +202,47 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
             if (base_path.len > 0) ctx.allocator.free(full_path);
         }
 
-        if (entry_type == c.GIT_OBJECT_TREE) {
-            try writer.writeAll("<a href='?");
-            if (ctx.repo) |r| {
-                try writer.print("r={s}&", .{r.name});
-            }
-            try writer.writeAll("cmd=tree");
-            // Preserve commit ID or branch
-            if (ctx.query.get("id")) |id| {
-                try writer.print("&id={s}", .{id});
-            } else if (ctx.query.get("h")) |branch| {
-                try writer.print("&h={s}", .{branch});
-            }
-            try writer.writeAll("&path=");
-            try html.urlEncodePath(writer, full_path);
-            try writer.print("'>{s}/</a>", .{entry_name});
-        } else {
-            try writer.writeAll("<a href='?");
-            if (ctx.repo) |r| {
-                try writer.print("r={s}&", .{r.name});
-            }
-            try writer.writeAll("cmd=blob");
-            // Preserve commit ID or branch
-            if (ctx.query.get("id")) |id| {
-                try writer.print("&id={s}", .{id});
-            } else if (ctx.query.get("h")) |branch| {
-                try writer.print("&h={s}", .{branch});
-            }
-            try writer.writeAll("&path=");
-            try html.urlEncodePath(writer, full_path);
-            try writer.print("'>{s}</a>", .{entry_name});
+        // Mode
+        try writer.writeAll("<span class='tree-mode'>");
+        try writer.writeAll(git.getFileMode(entry_mode));
+        try writer.writeAll("</span>");
+        
+        // Name link
+        try writer.writeAll("<a class='tree-name' href='?");
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
         }
-        try writer.writeAll("</td>");
+        
+        if (is_dir) {
+            try writer.writeAll("cmd=tree");
+        } else {
+            try writer.writeAll("cmd=blob");
+        }
+        
+        // Preserve commit ID or branch
+        if (ctx.query.get("id")) |id| {
+            try writer.print("&id={s}", .{id});
+        } else if (ctx.query.get("h")) |branch| {
+            try writer.print("&h={s}", .{branch});
+        }
+        try writer.writeAll("&path=");
+        try html.urlEncodePath(writer, full_path);
+        try writer.writeAll("'>");
+        try writer.writeAll(entry_name);
+        if (is_dir) {
+            try writer.writeAll("/");
+        }
+        try writer.writeAll("</a>");
 
         // Size
-        try writer.writeAll("<td>");
+        try writer.writeAll("<span class='tree-size'>");
         if (entry_type == c.GIT_OBJECT_BLOB) {
             var blob = repo.lookupBlob(@constCast(entry_oid)) catch {
                 try writer.writeAll("-");
-                try writer.writeAll("</td>");
-                try writer.writeAll("<td>-</td>");
-                try writer.writeAll("</tr>\n");
+                try writer.writeAll("</span>");
+                try writer.writeAll("<span class='tree-actions'>");
+                try writer.writeAll("</span>");
+                try writer.writeAll("</div>\n");
                 continue;
             };
             defer blob.free();
@@ -249,10 +252,13 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         } else {
             try writer.writeAll("-");
         }
-        try writer.writeAll("</td>");
+        try writer.writeAll("</span>");
 
+        // Actions
+        try writer.writeAll("<span class='tree-actions'>");
+        try writer.writeAll("[");
+        
         // Log link
-        try writer.writeAll("<td>");
         try writer.writeAll("<a href='?");
         if (ctx.repo) |r| {
             try writer.print("r={s}&", .{r.name});
@@ -267,10 +273,28 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         try writer.writeAll("&path=");
         try html.urlEncodePath(writer, full_path);
         try writer.writeAll("'>log</a>");
-        try writer.writeAll("</td>");
-
-        try writer.writeAll("</tr>\n");
+        
+        // Blame link for files
+        if (!is_dir) {
+            try writer.writeAll(" | ");
+            try writer.writeAll("<a href='?");
+            if (ctx.repo) |r| {
+                try writer.print("r={s}&", .{r.name});
+            }
+            try writer.writeAll("cmd=blame");
+            if (ctx.query.get("id")) |id| {
+                try writer.print("&id={s}", .{id});
+            } else if (ctx.query.get("h")) |branch| {
+                try writer.print("&h={s}", .{branch});
+            }
+            try writer.writeAll("&path=");
+            try html.urlEncodePath(writer, full_path);
+            try writer.writeAll("'>blame</a>");
+        }
+        
+        try writer.writeAll("]</span>");
+        try writer.writeAll("</div>\n"); // tree-item
     }
 
-    try html.writeTableFooter(writer);
+    try writer.writeAll("</div>\n"); // tree-list
 }

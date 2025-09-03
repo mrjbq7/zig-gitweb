@@ -230,17 +230,8 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     // Set sorting
     walk.setSorting(@intCast(c.GIT_SORT_TIME | if (ctx.repo.?.commit_sort == .topo) c.GIT_SORT_TOPOLOGICAL else 0));
 
-    // Table headers
-    if (ctx.cfg.enable_log_filecount and ctx.cfg.enable_log_linecount) {
-        const headers = [_][]const u8{ "Age", "Commit", "Author", "Files", "Lines", "Message" };
-        try html.writeTableHeader(writer, &headers);
-    } else if (ctx.cfg.enable_log_filecount) {
-        const headers = [_][]const u8{ "Age", "Commit", "Author", "Files", "Message" };
-        try html.writeTableHeader(writer, &headers);
-    } else {
-        const headers = [_][]const u8{ "Age", "Commit", "Author", "Message" };
-        try html.writeTableHeader(writer, &headers);
-    }
+    // Start log list
+    try writer.writeAll("<div class='log-list'>\n");
 
     // Skip to offset
     var skip = offset;
@@ -273,49 +264,32 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
         const commit_time = commit.time();
         const summary = commit.summary();
 
-        try html.writeTableRow(writer, if (count % 2 == 0) "even" else null);
+        var oid_buf: [40]u8 = undefined;
+        @memcpy(&oid_buf, oid_str[0..40]);
 
-        // Age
-        try writer.writeAll("<td class='age' data-timestamp='");
-        try writer.print("{d}", .{commit_time});
-        try writer.writeAll("'>");
-        try shared.formatAge(writer, commit_time);
-        try writer.writeAll("</td>");
+        // Determine message to show
+        const message = if (expanded)
+            commit.message()
+        else
+            parsing.truncateString(summary, @intCast(ctx.cfg.max_msg_len));
+        
+        // Get refs for this commit if any
+        const refs = if (refs_map.get(&oid_str)) |ref_list|
+            ref_list.items
+        else
+            null;
 
-        // Commit hash
-        try writer.writeAll("<td class='commit-hash'>");
-        try shared.writeCommitLink(ctx, writer, &oid_str, oid_str[0..7]);
-        try writer.writeAll("</td>");
-
-        // Author
-        try writer.writeAll("<td>");
-        const author_name = std.mem.span(author_sig.name);
-        const truncated_author = parsing.truncateString(author_name, 30);
-        try html.htmlEscape(writer, truncated_author);
-        try writer.writeAll("</td>");
-
-        // File/line statistics
-        if (ctx.cfg.enable_log_filecount or ctx.cfg.enable_log_linecount) {
-            const stats = try getCommitStats(&git_repo, &commit);
-
-            if (ctx.cfg.enable_log_filecount) {
-                try writer.print("<td>{d}</td>", .{stats.files_changed});
-            }
-
-            if (ctx.cfg.enable_log_linecount) {
-                try writer.writeAll("<td class='log-stats'>");
-                try writer.print("<span class='insertions'>+{d}</span> ", .{stats.insertions});
-                try writer.print("<span class='deletions'>-{d}</span>", .{stats.deletions});
-                try writer.writeAll("</td>");
-            }
-        }
-
-        // Message
-        try writer.writeAll("<td>");
-
-        // Show refs (branches and tags) for this commit
-        if (refs_map.get(&oid_str)) |refs| {
-            for (refs.items) |ref_info| {
+        // Start log item manually to include stats
+        try writer.writeAll("<div class='log-item'>\n");
+        
+        // First line: commit message with inline refs
+        try writer.writeAll("<div class='log-message'>\n");
+        try html.htmlEscape(writer, message);
+        
+        // Show refs inline if present
+        if (refs) |ref_list| {
+            try writer.writeAll(" ");
+            for (ref_list) |ref_info| {
                 switch (ref_info.ref_type) {
                     .branch => {
                         try writer.writeAll("<span class='ref-branch'>");
@@ -330,24 +304,47 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
                 }
             }
         }
-
-        if (expanded) {
-            // Show full commit message with preserved formatting
-            try writer.writeAll("<pre class='commit-msg'>");
-            const full_message = commit.message();
-            try html.htmlEscape(writer, full_message);
-            try writer.writeAll("</pre>");
-        } else {
-            // Show only summary line
-            const truncated = parsing.truncateString(summary, @intCast(ctx.cfg.max_msg_len));
-            try html.htmlEscape(writer, truncated);
+        
+        try writer.writeAll("</div>\n");
+        
+        // Second line: metadata
+        try writer.writeAll("<div class='log-meta'>\n");
+        
+        // Commit hash
+        try writer.writeAll("<span class='log-hash'>");
+        try shared.writeCommitLink(ctx, writer, &oid_buf, oid_buf[0..7]);
+        try writer.writeAll("</span>");
+        
+        // Author
+        try writer.writeAll("<span class='log-author'>");
+        try html.htmlEscape(writer, parsing.truncateString(std.mem.span(author_sig.name), 20));
+        try writer.writeAll("</span>");
+        
+        // Age
+        try writer.print("<span class='log-age' data-timestamp='{d}'>", .{commit_time});
+        try shared.formatAge(writer, commit_time);
+        try writer.writeAll("</span>");
+        
+        // File/line statistics
+        if (ctx.cfg.enable_log_filecount or ctx.cfg.enable_log_linecount) {
+            const stats = try getCommitStats(&git_repo, &commit);
+            
+            try writer.writeAll("<span class='log-stats'>");
+            if (ctx.cfg.enable_log_filecount) {
+                try writer.print("{d} file{s} ", .{stats.files_changed, if (stats.files_changed == 1) "" else "s"});
+            }
+            if (ctx.cfg.enable_log_linecount) {
+                try writer.print("(<span class='insertions'>+{d}</span>, ", .{stats.insertions});
+                try writer.print("<span class='deletions'>-{d}</span>)", .{stats.deletions});
+            }
+            try writer.writeAll("</span>");
         }
-        try writer.writeAll("</td>");
-
-        try writer.writeAll("</tr>\n");
+        
+        try writer.writeAll("</div>\n"); // log-meta
+        try writer.writeAll("</div>\n"); // log-item
     }
 
-    try html.writeTableFooter(writer);
+    try writer.writeAll("</div>\n"); // log-list
 
     // Pagination
     try writer.writeAll("<div class='pagination'>\n");

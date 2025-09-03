@@ -161,6 +161,91 @@ table.list td.age {
     font-size: 13px;
 }
 
+/* Tree List - Compact Single-Line Layout */
+.tree-list {
+    margin: 16px 0;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 13px;
+}
+
+.tree-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    border-bottom: 1px solid #e1e4e8;
+    transition: background-color 0.2s;
+}
+
+.tree-item:hover {
+    background-color: #f6f8fa;
+}
+
+.tree-item.tree-dir .tree-name {
+    font-weight: 600;
+}
+
+.tree-item.tree-parent {
+    background-color: #f6f8fa;
+}
+
+.tree-mode {
+    color: #57606a;
+    white-space: nowrap;
+    min-width: 90px;
+}
+
+.tree-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #24292e;
+}
+
+.tree-name:hover {
+    text-decoration: underline;
+}
+
+.tree-size {
+    color: #57606a;
+    white-space: nowrap;
+    min-width: 60px;
+    text-align: right;
+}
+
+.tree-actions {
+    color: #57606a;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.tree-actions a {
+    color: #0969da;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .tree-list {
+        font-size: 12px;
+    }
+    
+    .tree-item {
+        padding: 8px;
+        gap: 8px;
+    }
+    
+    .tree-mode {
+        min-width: auto;
+        display: none; /* Hide mode on mobile for space */
+    }
+    
+    .tree-size {
+        min-width: 50px;
+    }
+}
+
 /* Age color coding */
 .age-recent {
     color: #333;  /* Black for days and weeks */
@@ -379,6 +464,85 @@ table.blame td.code {
 }
 
 /* Log view */
+.log-list {
+    margin: 16px 0;
+}
+
+.log-item {
+    padding: 8px 16px;
+    border-bottom: 1px solid #e1e4e8;
+    transition: background-color 0.2s;
+}
+
+.log-item:hover {
+    background-color: #f6f8fa;
+}
+
+.log-message {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #24292e;
+    margin-bottom: 4px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.log-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: #57606a;
+}
+
+.log-hash {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.log-hash a {
+    color: #0969da;
+}
+
+.log-author {
+    font-weight: 500;
+}
+
+.log-age {
+    white-space: nowrap;
+}
+
+.log-stats {
+    white-space: nowrap;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 12px;
+}
+
+.log-stats .insertions {
+    color: #1a7f37;
+}
+
+.log-stats .deletions {
+    color: #cf222e;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .log-item {
+        padding: 6px 12px;
+    }
+    
+    .log-meta {
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 12px;
+    }
+    
+    .log-author {
+        order: -1;
+        width: 100%;
+    }
+}
+
 div.log h2 {
     margin-bottom: 16px;
 }
@@ -420,27 +584,404 @@ td.log-stats .deletions {
     color: #cf222e;
 }
 
-/* Ref indicators in log view */
-span.ref-branch, span.ref-tag {
+/* Ref indicators */
+.ref-branch, .ref-tag, span.ref-branch, span.ref-tag {
     display: inline-block;
     padding: 2px 6px;
-    margin-right: 4px;
-    border-radius: 3px;
     font-size: 12px;
     font-weight: 500;
+    border-radius: 3px;
+    margin-right: 4px;
+    white-space: nowrap;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 }
 
-span.ref-branch {
+.ref-branch, span.ref-branch {
     background: #d1f5d3;
     color: #1a7f37;
     border: 1px solid #8fc592;
 }
 
-span.ref-tag {
-    background: #fff8dc;
-    color: #9a6700;
+.ref-tag, span.ref-tag {
+    background: #fff8c5;
+    color: #7d4e00;
     border: 1px solid #f0d000;
+}
+
+/* Refs view */
+.refs-list {
+    margin: 16px 0;
+}
+
+.refs-item {
+    padding: 10px 16px;
+    border-bottom: 1px solid #e1e4e8;
+    transition: background-color 0.2s;
+}
+
+.refs-item:hover {
+    background-color: #f6f8fa;
+}
+
+.refs-item.refs-current {
+    background-color: #fff8f0;
+}
+
+.refs-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.refs-name {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.refs-name a {
+    color: #24292e;
+}
+
+.refs-remote {
+    color: #57606a;
+    font-size: 12px;
+}
+
+.refs-head {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #fef2c0;
+    color: #735c0f;
+    border-radius: 3px;
+    margin-left: 4px;
+}
+
+.refs-annotated-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #e1f5fe;
+    color: #01579b;
+    border-radius: 3px;
+    margin-left: 4px;
+}
+
+.refs-message {
+    font-size: 13px;
+    color: #586069;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.refs-download {
+    font-size: 12px;
+}
+
+.refs-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: #57606a;
+}
+
+.refs-hash {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.refs-hash a {
+    color: #0969da;
+}
+
+.refs-author {
+    font-weight: 500;
+}
+
+.refs-age {
+    white-space: nowrap;
+}
+
+.refs-empty {
+    padding: 20px;
+    text-align: center;
+    color: #57606a;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .refs-item {
+        padding: 8px 12px;
+    }
+    
+    .refs-top {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    
+    .refs-download {
+        margin-top: 4px;
+    }
+    
+    .refs-meta {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}
+
+/* Unified Card Styles for Summary and Refs pages */
+/* These styles support both "summary-branch", "summary-tag", "refs" prefixes */
+.summary-branches, .summary-tags {
+    margin: 16px 0;
+}
+
+.summary-branch-item, .summary-tag-item {
+    padding: 10px 16px;
+    border-bottom: 1px solid #e1e4e8;
+    transition: background-color 0.2s;
+}
+
+.summary-branch-item:hover, .summary-tag-item:hover {
+    background-color: #f6f8fa;
+}
+
+.summary-branch-item.summary-branch-current {
+    background-color: #fff8f0;
+}
+
+.summary-branch-top, .summary-tag-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.summary-branch-name, .summary-tag-name {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.summary-branch-name a, .summary-tag-name a {
+    color: #24292e;
+}
+
+.summary-branch-head {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #fef2c0;
+    color: #735c0f;
+    border-radius: 3px;
+    margin-left: 4px;
+}
+
+.summary-branch-message, .summary-tag-message {
+    font-size: 13px;
+    color: #586069;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.summary-tag-download {
+    font-size: 12px;
+}
+
+.summary-tag-download a {
+    color: #0969da;
+}
+
+.summary-branch-meta, .summary-tag-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: #57606a;
+}
+
+.summary-branch-hash, .summary-tag-hash {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.summary-branch-hash a, .summary-tag-hash a {
+    color: #0969da;
+}
+
+.summary-branch-author, .summary-tag-author {
+    font-weight: 500;
+}
+
+.summary-branch-age, .summary-tag-age {
+    white-space: nowrap;
+}
+
+/* Summary Page - Commits */
+.summary-commits {
+    margin: 16px 0;
+}
+
+.summary-commit-item {
+    padding: 8px 16px;
+    border-bottom: 1px solid #e1e4e8;
+    transition: background-color 0.2s;
+}
+
+.summary-commit-item:hover {
+    background-color: #f6f8fa;
+}
+
+.summary-commit-message {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #24292e;
+    margin-bottom: 4px;
+}
+
+.summary-commit-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: #57606a;
+}
+
+.summary-commit-hash {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.summary-commit-hash a {
+    color: #0969da;
+}
+
+.summary-commit-author {
+    font-weight: 500;
+}
+
+.summary-commit-age {
+    white-space: nowrap;
+}
+
+/* Mobile responsive for summary cards */
+@media (max-width: 768px) {
+    .summary-branch-item, .summary-tag-item, .summary-commit-item {
+        padding: 8px 12px;
+    }
+    
+    .summary-branch-top, .summary-tag-top {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    
+    .summary-tag-download {
+        margin-top: 4px;
+    }
+    
+    .summary-branch-meta, .summary-tag-meta, .summary-commit-meta {
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 12px;
+    }
+}
+
+/* Repository list (index page) */
+.repolist {
+    margin: 16px 0;
+}
+
+.repo-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #e1e4e8;
+    transition: background-color 0.2s;
+}
+
+.repo-item:hover {
+    background-color: #f6f8fa;
+}
+
+.repo-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.repo-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.repo-name a {
+    color: #0969da;
+}
+
+.repo-description {
+    font-size: 14px;
+    color: #57606a;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.repo-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 13px;
+    color: #57606a;
+}
+
+.repo-activity {
+    white-space: nowrap;
+}
+
+.repo-actions {
+    white-space: nowrap;
+}
+
+.repo-actions a {
+    color: #0969da;
+}
+
+.repolist-empty {
+    padding: 40px;
+    text-align: center;
+    color: #57606a;
+    font-size: 14px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .repo-item {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 12px;
+    }
+    
+    .repo-main {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+    
+    .repo-meta {
+        width: 100%;
+        justify-content: space-between;
+        font-size: 12px;
+    }
+    
+    .repo-description {
+        white-space: normal;
+        word-wrap: break-word;
+    }
 }
 
 /* Footer */

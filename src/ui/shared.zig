@@ -126,6 +126,203 @@ pub fn writeDiffLink(ctx: *gitweb.Context, writer: anytype, old_oid: []const u8,
     try writer.writeAll("</a>");
 }
 
+const git = @import("../git.zig");
+const parsing = @import("../parsing.zig");
+
+// Shared branch info structure
+pub const BranchItemInfo = struct {
+    name: []const u8,
+    is_head: bool,
+    oid_str: [40]u8,
+    author_name: []const u8,
+    message: []const u8,
+    timestamp: i64,
+};
+
+// Render a branch item in the unified card style
+pub fn writeBranchItem(ctx: *gitweb.Context, writer: anytype, info: BranchItemInfo, css_prefix: []const u8) !void {
+    try writer.print("<div class='{s}-item", .{css_prefix});
+    if (info.is_head) {
+        try writer.print(" {s}-current", .{css_prefix});
+    }
+    try writer.writeAll("'>\n");
+    
+    // First line: branch name and message
+    try writer.print("<div class='{s}-top'>\n", .{css_prefix});
+    
+    // Name
+    try writer.print("<div class='{s}-name'>\n", .{css_prefix});
+    if (ctx.repo) |r| {
+        try writer.print("<a href='?r={s}&cmd=log&h={s}'>{s}</a>", .{ r.name, info.name, info.name });
+    } else {
+        try writer.print("<a href='?cmd=log&h={s}'>{s}</a>", .{ info.name, info.name });
+    }
+    if (info.is_head) {
+        try writer.print(" <span class='{s}-head'>HEAD</span>", .{css_prefix});
+    }
+    try writer.writeAll("</div>\n");
+    
+    // Message
+    try writer.print("<div class='{s}-message'>\n", .{css_prefix});
+    const truncated = parsing.truncateString(info.message, 60);
+    try html.htmlEscape(writer, truncated);
+    try writer.writeAll("</div>\n");
+    
+    try writer.writeAll("</div>\n"); // top
+    
+    // Second line: metadata
+    try writer.print("<div class='{s}-meta'>\n", .{css_prefix});
+    
+    // Commit hash
+    try writer.print("<span class='{s}-hash'>", .{css_prefix});
+    try writeCommitLink(ctx, writer, &info.oid_str, info.oid_str[0..7]);
+    try writer.writeAll("</span>");
+    
+    // Author
+    try writer.print("<span class='{s}-author'>", .{css_prefix});
+    try html.htmlEscape(writer, parsing.truncateString(info.author_name, 20));
+    try writer.writeAll("</span>");
+    
+    // Age
+    try writer.print("<span class='{s}-age' data-timestamp='{d}'>", .{ css_prefix, info.timestamp });
+    try formatAge(writer, info.timestamp);
+    try writer.writeAll("</span>");
+    
+    try writer.writeAll("</div>\n"); // meta
+    try writer.writeAll("</div>\n"); // item
+}
+
+// Shared tag info structure  
+pub const TagItemInfo = struct {
+    name: []const u8,
+    oid_str: [40]u8,
+    author_name: []const u8,
+    message: []const u8,
+    timestamp: i64,
+};
+
+// Render a tag item in the unified card style
+pub fn writeTagItem(ctx: *gitweb.Context, writer: anytype, info: TagItemInfo, css_prefix: []const u8) !void {
+    try writer.print("<div class='{s}-item'>\n", .{css_prefix});
+    
+    // First line: tag name and download links
+    try writer.print("<div class='{s}-top'>\n", .{css_prefix});
+    
+    // Name
+    try writer.print("<div class='{s}-name'>\n", .{css_prefix});
+    if (ctx.repo) |r| {
+        try writer.print("<a href='?r={s}&cmd=tag&h={s}'>{s}</a>", .{ r.name, info.name, info.name });
+    } else {
+        try writer.print("<a href='?cmd=tag&h={s}'>{s}</a>", .{ info.name, info.name });
+    }
+    try writer.writeAll("</div>\n");
+    
+    // Download links
+    try writer.print("<div class='{s}-download'>\n", .{css_prefix});
+    if (ctx.repo) |r| {
+        try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{ r.name, info.name });
+        try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{ r.name, info.name });
+    } else {
+        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{info.name});
+        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{info.name});
+    }
+    try writer.writeAll("</div>\n");
+    
+    try writer.writeAll("</div>\n"); // top
+    
+    // Message
+    try writer.print("<div class='{s}-message'>\n", .{css_prefix});
+    const truncated = parsing.truncateString(info.message, 60);
+    try html.htmlEscape(writer, truncated);
+    try writer.writeAll("</div>\n");
+    
+    // Metadata
+    try writer.print("<div class='{s}-meta'>\n", .{css_prefix});
+    
+    // Hash
+    try writer.print("<span class='{s}-hash'>", .{css_prefix});
+    try writeCommitLink(ctx, writer, &info.oid_str, info.oid_str[0..7]);
+    try writer.writeAll("</span>");
+    
+    // Author
+    try writer.print("<span class='{s}-author'>", .{css_prefix});
+    try html.htmlEscape(writer, parsing.truncateString(info.author_name, 20));
+    try writer.writeAll("</span>");
+    
+    // Age
+    try writer.print("<span class='{s}-age' data-timestamp='{d}'>", .{ css_prefix, info.timestamp });
+    try formatAge(writer, info.timestamp);
+    try writer.writeAll("</span>");
+    
+    try writer.writeAll("</div>\n"); // meta
+    try writer.writeAll("</div>\n"); // item
+}
+
+// Shared commit info structure
+pub const CommitItemInfo = struct {
+    oid_str: [40]u8,
+    message: []const u8,
+    author_name: []const u8,
+    timestamp: i64,
+    refs: ?[]const RefInfo = null,
+    
+    pub const RefInfo = struct {
+        name: []const u8,
+        ref_type: enum { branch, tag },
+    };
+};
+
+// Render a commit item in the unified card style
+pub fn writeCommitItem(ctx: *gitweb.Context, writer: anytype, info: CommitItemInfo, css_prefix: []const u8) !void {
+    try writer.print("<div class='{s}-item'>\n", .{css_prefix});
+    
+    // First line: commit message with inline refs
+    try writer.print("<div class='{s}-message'>\n", .{css_prefix});
+    try html.htmlEscape(writer, info.message);
+    
+    // Show refs (branches and tags) inline at the end if present
+    if (info.refs) |refs| {
+        try writer.writeAll(" ");
+        for (refs) |ref_info| {
+            switch (ref_info.ref_type) {
+                .branch => {
+                    try writer.writeAll("<span class='ref-branch'>");
+                    try html.htmlEscape(writer, ref_info.name);
+                    try writer.writeAll("</span> ");
+                },
+                .tag => {
+                    try writer.writeAll("<span class='ref-tag'>");
+                    try html.htmlEscape(writer, ref_info.name);
+                    try writer.writeAll("</span> ");
+                },
+            }
+        }
+    }
+    
+    try writer.writeAll("</div>\n");
+    
+    // Second line: metadata
+    try writer.print("<div class='{s}-meta'>\n", .{css_prefix});
+    
+    // Commit hash
+    try writer.print("<span class='{s}-hash'>", .{css_prefix});
+    try writeCommitLink(ctx, writer, &info.oid_str, info.oid_str[0..7]);
+    try writer.writeAll("</span>");
+    
+    // Author
+    try writer.print("<span class='{s}-author'>", .{css_prefix});
+    try html.htmlEscape(writer, parsing.truncateString(info.author_name, 20));
+    try writer.writeAll("</span>");
+    
+    // Age
+    try writer.print("<span class='{s}-age' data-timestamp='{d}'>", .{ css_prefix, info.timestamp });
+    try formatAge(writer, info.timestamp);
+    try writer.writeAll("</span>");
+    
+    try writer.writeAll("</div>\n"); // meta
+    try writer.writeAll("</div>\n"); // item
+}
+
 pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) !void {
     try writer.writeAll("<div class='path'>");
     try writer.writeAll("path: ");

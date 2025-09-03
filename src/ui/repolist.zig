@@ -13,24 +13,15 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
         description: []const u8,
         owner: []const u8,
         idle: []const u8,
+        last_commit_time: ?i64,
     };
-
-    // Table headers
-    try writer.writeAll("<table class='list nowrap'>\n");
-    try writer.writeAll("<tr class='nohover'>");
-    try writer.writeAll("<th class='left'>Name</th>");
-    try writer.writeAll("<th class='left'>Description</th>");
-    try writer.writeAll("<th class='left'>Owner</th>");
-    try writer.writeAll("<th class='left'>Idle</th>");
-    try writer.writeAll("</tr>\n");
 
     // Scan for repositories if scan-path is configured
     if (ctx.cfg.scanpath) |scan_path| {
         // std.debug.print("repolist: Scanning path: {s}\n", .{scan_path});
 
         var dir = std.fs.openDirAbsolute(scan_path, .{ .iterate = true }) catch {
-            try writer.writeAll("<tr><td colspan='4'>Failed to open repository directory</td></tr>\n");
-            try writer.writeAll("</table>\n");
+            try writer.writeAll("<div class='repolist-empty'>Failed to open repository directory</div>\n");
             try writer.writeAll("</div>\n");
             return;
         };
@@ -106,11 +97,38 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
                     break :blk desc_copy;
                 };
 
+                // Try to get last commit time
+                const last_commit_time = blk: {
+                    var git_repo = git.Repository.open(repo_path) catch {
+                        break :blk null;
+                    };
+                    defer git_repo.close();
+                    
+                    var walk = git_repo.revwalk() catch {
+                        break :blk null;
+                    };
+                    defer walk.free();
+                    
+                    walk.pushHead() catch {
+                        break :blk null;
+                    };
+                    
+                    if (walk.next()) |oid| {
+                        var commit = git_repo.lookupCommit(&oid) catch {
+                            break :blk null;
+                        };
+                        defer commit.free();
+                        break :blk commit.time();
+                    }
+                    break :blk null;
+                };
+                
                 try repos.append(ctx.allocator, RepoInfo{
                     .name = try ctx.allocator.dupe(u8, repo_name),
                     .description = description,
                     .owner = "",
                     .idle = "",
+                    .last_commit_time = last_commit_time,
                 });
             }
         }
@@ -124,37 +142,54 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
 
         // Display sorted repositories
         for (repos.items) |repo| {
-            // Write table row
-            try writer.writeAll("<tr>");
-
-            // Name column with link
-            try writer.writeAll("<td>");
+            try writer.writeAll("<div class='repo-item'>\n");
+            
+            // Repository name and description
+            try writer.writeAll("<div class='repo-main'>\n");
+            
+            // Name
+            try writer.writeAll("<div class='repo-name'>\n");
             try writer.print("<a href='?r={s}'>{s}</a>", .{ repo.name, repo.name });
-            try writer.writeAll("</td>");
-
-            // Description column
-            try writer.writeAll("<td>");
+            try writer.writeAll("</div>\n");
+            
+            // Description
             if (repo.description.len > 0) {
+                try writer.writeAll("<div class='repo-description'>\n");
                 try html.htmlEscape(writer, repo.description);
+                try writer.writeAll("</div>\n");
             }
-            try writer.writeAll("</td>");
-
-            // Owner column (TODO: get from config or git config)
-            try writer.writeAll("<td></td>");
-
-            // Idle column (TODO: get last commit time)
-            try writer.writeAll("<td></td>");
-
-            try writer.writeAll("</tr>\n");
+            
+            try writer.writeAll("</div>\n"); // repo-main
+            
+            // Metadata
+            try writer.writeAll("<div class='repo-meta'>\n");
+            
+            // Last activity
+            if (repo.last_commit_time) |commit_time| {
+                try writer.writeAll("<span class='repo-activity'>\n");
+                try writer.writeAll("Updated ");
+                try shared.formatAge(writer, commit_time);
+                try writer.writeAll("</span>\n");
+            }
+            
+            // Actions
+            try writer.writeAll("<span class='repo-actions'>\n");
+            try writer.print("<a href='?r={s}&cmd=summary'>summary</a>", .{repo.name});
+            try writer.writeAll(" | ");
+            try writer.print("<a href='?r={s}&cmd=log'>log</a>", .{repo.name});
+            try writer.writeAll(" | ");
+            try writer.print("<a href='?r={s}&cmd=tree'>tree</a>", .{repo.name});
+            try writer.writeAll("</span>\n");
+            
+            try writer.writeAll("</div>\n"); // repo-meta
+            try writer.writeAll("</div>\n"); // repo-item
         }
 
         if (repos.items.len == 0) {
-            try writer.writeAll("<tr><td colspan='4'>No repositories found</td></tr>\n");
+            try writer.writeAll("<div class='repolist-empty'>No repositories found</div>\n");
         }
     } else {
-        try writer.writeAll("<tr><td colspan='4'>No scan path configured</td></tr>\n");
+        try writer.writeAll("<div class='repolist-empty'>No scan path configured</div>\n");
     }
-
-    try writer.writeAll("</table>\n");
     try writer.writeAll("</div>\n");
 }

@@ -8,8 +8,18 @@ const parsing = @import("../parsing.zig");
 const c = git.c;
 
 pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
-    const repo = ctx.repo orelse return error.NoRepo;
-    const path = ctx.query.get("path") orelse return error.NoPath;
+    const repo = ctx.repo orelse {
+        try writer.writeAll("<div class='error'>\n");
+        try writer.writeAll("<p>No repository specified.</p>\n");
+        try writer.writeAll("</div>\n");
+        return;
+    };
+    const path = ctx.query.get("path") orelse {
+        try writer.writeAll("<div class='error'>\n");
+        try writer.writeAll("<p>No file path specified.</p>\n");
+        try writer.writeAll("</div>\n");
+        return;
+    };
 
     try writer.writeAll("<div class='blame'>\n");
 

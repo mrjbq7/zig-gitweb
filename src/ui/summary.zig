@@ -49,12 +49,88 @@ pub fn summary(ctx: *gitweb.Context, writer: anytype) !void {
 
 fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
     try writer.writeAll("<h3>Recent Commits</h3>\n");
+    try writer.writeAll("<div class='summary-commits'>\n");
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
+        try writer.writeAll("</div>\n");
         return;
     };
     defer git_repo.close();
+
+    // First, collect all refs (branches and tags) into a map
+    var refs_map = std.StringHashMap(std.ArrayList(shared.CommitItemInfo.RefInfo)).init(ctx.allocator);
+    defer {
+        var it = refs_map.iterator();
+        while (it.next()) |entry| {
+            ctx.allocator.free(entry.key_ptr.*);
+            // Free the duplicated ref names
+            for (entry.value_ptr.items) |ref_info| {
+                ctx.allocator.free(ref_info.name);
+            }
+            entry.value_ptr.deinit(ctx.allocator);
+        }
+        refs_map.deinit();
+    }
+
+    // Get branches
+    const branches = try git_repo.getBranches(ctx.allocator);
+    defer ctx.allocator.free(branches);
+
+    for (branches) |branch| {
+        defer @constCast(&branch.ref).free();
+        if (!branch.is_remote) {
+            const target = @constCast(&branch.ref).target() orelse continue;
+            const oid_str = try git.oidToString(target);
+            
+            // Make a copy of the OID string for the map key
+            const key = try ctx.allocator.dupe(u8, oid_str[0..40]);
+            errdefer ctx.allocator.free(key);
+            
+            const result = try refs_map.getOrPut(key);
+            if (!result.found_existing) {
+                result.value_ptr.* = std.ArrayList(shared.CommitItemInfo.RefInfo).empty;
+            } else {
+                // Free the duplicate key since we didn't use it
+                ctx.allocator.free(key);
+            }
+            try result.value_ptr.append(ctx.allocator, .{
+                .name = try ctx.allocator.dupe(u8, branch.name),
+                .ref_type = .branch,
+            });
+        }
+    }
+
+    // Get tags
+    const tags = try git_repo.getTags(ctx.allocator);
+    defer {
+        for (tags) |tag| {
+            ctx.allocator.free(tag.name);
+            @constCast(&tag.ref).free();
+        }
+        ctx.allocator.free(tags);
+    }
+
+    for (tags) |tag| {
+        const target = @constCast(&tag.ref).target() orelse continue;
+        const oid_str = try git.oidToString(target);
+        
+        // Make a copy of the OID string for the map key
+        const key = try ctx.allocator.dupe(u8, oid_str[0..40]);
+        errdefer ctx.allocator.free(key);
+        
+        const result = try refs_map.getOrPut(key);
+        if (!result.found_existing) {
+            result.value_ptr.* = std.ArrayList(shared.CommitItemInfo.RefInfo).empty;
+        } else {
+            // Free the duplicate key since we didn't use it
+            ctx.allocator.free(key);
+        }
+        try result.value_ptr.append(ctx.allocator, .{
+            .name = try ctx.allocator.dupe(u8, tag.name),
+            .ref_type = .tag,
+        });
+    }
 
     var walk = try git_repo.revwalk();
     defer walk.free();
@@ -77,8 +153,6 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
     }
     walk.setSorting(@import("../git.zig").c.GIT_SORT_TIME);
 
-    try html.writeTableHeader(writer, &[_][]const u8{ "Age", "Commit", "Author", "Message" });
-
     var count: u32 = 0;
     while (walk.next()) |oid| {
         if (count >= ctx.cfg.summary_log) break;
@@ -90,44 +164,39 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
         const oid_str = try git.oidToString(commit.id());
         const author_sig = commit.author();
         const commit_time = commit.time();
-
-        try html.writeTableRow(writer, null);
-
-        // Age
-        try writer.writeAll("<td class='age' data-timestamp='");
-        try writer.print("{d}", .{commit_time});
-        try writer.writeAll("'>");
-        try shared.formatAge(writer, commit_time);
-        try writer.writeAll("</td>");
-
-        // Commit hash
-        try writer.writeAll("<td class='commit-hash'>");
-        try shared.writeCommitLink(ctx, writer, &oid_str, oid_str[0..7]);
-        try writer.writeAll("</td>");
-
-        // Author
-        try writer.writeAll("<td>");
-        try html.htmlEscape(writer, std.mem.span(author_sig.name));
-        try writer.writeAll("</td>");
-
-        // Message
-        try writer.writeAll("<td>");
         const commit_summary = commit.summary();
-        const truncated = parsing.truncateString(commit_summary, @intCast(ctx.cfg.max_msg_len));
-        try html.htmlEscape(writer, truncated);
-        try writer.writeAll("</td>");
 
-        try writer.writeAll("</tr>\n");
+        var oid_buf: [40]u8 = undefined;
+        @memcpy(&oid_buf, oid_str[0..40]);
+
+        const truncated = parsing.truncateString(commit_summary, @intCast(ctx.cfg.max_msg_len));
+        
+        // Get refs for this commit if any
+        const refs = if (refs_map.get(&oid_str)) |ref_list|
+            ref_list.items
+        else
+            null;
+
+        // Use shared rendering function
+        try shared.writeCommitItem(ctx, writer, shared.CommitItemInfo{
+            .oid_str = oid_buf,
+            .message = truncated,
+            .author_name = std.mem.span(author_sig.name),
+            .timestamp = commit_time,
+            .refs = refs,
+        }, "summary-commit");
     }
 
-    try html.writeTableFooter(writer);
+    try writer.writeAll("</div>\n"); // summary-commits
 }
 
 fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
-    try writer.writeAll("<h3>Recent Branches</h3>\n");
+    try writer.writeAll("<h3>Branches</h3>\n");
+    try writer.writeAll("<div class='summary-branches'>\n");
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
+        try writer.writeAll("</div>\n");
         return;
     };
     defer git_repo.close();
@@ -137,8 +206,14 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
 
     if (branches.len == 0) {
         try writer.writeAll("<p>No branches found.</p>\n");
+        try writer.writeAll("</div>\n");
         return;
     }
+
+    // Get HEAD reference for comparison
+    const head_ref = git_repo.getHead() catch null;
+    defer if (head_ref) |ref| @constCast(&ref).free();
+    const head_name = if (head_ref) |ref| @constCast(&ref).name() else null;
 
     // Structure to hold branch data with timestamp for sorting
     const BranchInfo = struct {
@@ -147,6 +222,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
         oid_str: [40]u8,
         author_name: []const u8,
         message: []const u8,
+        is_head: bool,
     };
 
     // Collect branch info with timestamps
@@ -172,12 +248,15 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
             var oid_buf: [40]u8 = undefined;
             @memcpy(&oid_buf, oid_str[0..40]);
 
+            const is_head = if (head_name) |h| std.mem.eql(u8, @constCast(&branch.ref).name(), h) else false;
+
             try branch_infos.append(ctx.allocator, BranchInfo{
                 .branch = branch,
                 .timestamp = commit_time,
                 .oid_str = oid_buf,
                 .author_name = std.mem.span(author_sig.name),
                 .message = commit_summary,
+                .is_head = is_head,
             });
         }
     }
@@ -189,58 +268,32 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
         }
     }.lessThan);
 
-    try html.writeTableHeader(writer, &[_][]const u8{ "Branch", "Commit", "Author", "Message", "Age" });
-
     var shown: u32 = 0;
     for (branch_infos.items) |info| {
         if (shown >= ctx.cfg.summary_branches) break;
         shown += 1;
 
-        try html.writeTableRow(writer, null);
-
-        // Branch name
-        try writer.writeAll("<td>");
-        if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&h={s}'>{s}</a>", .{ r.name, info.branch.name, info.branch.name });
-        } else {
-            try writer.print("<a href='?h={s}'>{s}</a>", .{ info.branch.name, info.branch.name });
-        }
-        try writer.writeAll("</td>");
-
-        // Commit
-        try writer.writeAll("<td>");
-        try shared.writeCommitLink(ctx, writer, &info.oid_str, info.oid_str[0..7]);
-        try writer.writeAll("</td>");
-
-        // Author
-        try writer.writeAll("<td>");
-        try html.htmlEscape(writer, info.author_name);
-        try writer.writeAll("</td>");
-
-        // Message
-        try writer.writeAll("<td>");
-        const truncated = parsing.truncateString(info.message, @intCast(ctx.cfg.max_msg_len));
-        try html.htmlEscape(writer, truncated);
-        try writer.writeAll("</td>");
-
-        // Age
-        try writer.writeAll("<td class='age' data-timestamp='");
-        try writer.print("{d}", .{info.timestamp});
-        try writer.writeAll("'>");
-        try shared.formatAge(writer, info.timestamp);
-        try writer.writeAll("</td>");
-
-        try writer.writeAll("</tr>\n");
+        // Use shared rendering function
+        try shared.writeBranchItem(ctx, writer, shared.BranchItemInfo{
+            .name = info.branch.name,
+            .is_head = info.is_head,
+            .oid_str = info.oid_str,
+            .author_name = info.author_name,
+            .message = info.message,
+            .timestamp = info.timestamp,
+        }, "summary-branch");
     }
 
-    try html.writeTableFooter(writer);
+    try writer.writeAll("</div>\n"); // summary-branches
 }
 
 fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
-    try writer.writeAll("<h3>Recent Tags</h3>\n");
+    try writer.writeAll("<h3>Tags</h3>\n");
+    try writer.writeAll("<div class='summary-tags'>\n");
 
     var git_repo = git.Repository.open(repo.path) catch {
         try writer.writeAll("<p>Unable to open repository.</p>\n");
+        try writer.writeAll("</div>\n");
         return;
     };
     defer git_repo.close();
@@ -255,6 +308,7 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
 
     if (tags.len == 0) {
         try writer.writeAll("<p>No tags found.</p>\n");
+        try writer.writeAll("</div>\n");
         return;
     }
 
@@ -262,6 +316,7 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
     const TagInfo = struct {
         tag: git.Tag,
         timestamp: i64,
+        oid_str: [40]u8,
         author_name: []const u8,
         message: []const u8,
     };
@@ -276,7 +331,7 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
     }
 
     for (tags) |tag| {
-        _ = @constCast(&tag.ref).target() orelse continue;
+        const target = @constCast(&tag.ref).target() orelse continue;
 
         // Try to get tag object or fall back to commit
         var obj = @constCast(&tag.ref).peel(@import("../git.zig").c.GIT_OBJECT_COMMIT) catch continue;
@@ -285,13 +340,18 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
         var commit = try git_repo.lookupCommit(obj.id());
         defer commit.free();
 
+        const oid_str = try git.oidToString(target);
         const author_sig = commit.author();
         const commit_time = commit.time();
         const commit_summary = commit.summary();
 
+        var oid_buf: [40]u8 = undefined;
+        @memcpy(&oid_buf, oid_str[0..40]);
+
         try tag_infos.append(ctx.allocator, TagInfo{
             .tag = tag,
             .timestamp = commit_time,
+            .oid_str = oid_buf,
             .author_name = std.mem.span(author_sig.name),
             .message = commit_summary,
         });
@@ -304,61 +364,20 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
         }
     }.lessThan);
 
-    try html.writeTableHeader(writer, &[_][]const u8{ "Tag", "Download", "Author", "Message", "Age" });
-
     var shown: u32 = 0;
     for (tag_infos.items) |info| {
         if (shown >= ctx.cfg.summary_tags) break;
         shown += 1;
 
-        const tag = info.tag;
-        const commit_time = info.timestamp;
-        const author_name = info.author_name;
-
-        try html.writeTableRow(writer, null);
-
-        // Tag name
-        try writer.writeAll("<td>");
-        if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=tag&h={s}'>{s}</a>", .{ r.name, tag.name, tag.name });
-        } else {
-            try writer.print("<a href='?cmd=tag&h={s}'>{s}</a>", .{ tag.name, tag.name });
-        }
-        try writer.writeAll("</td>");
-
-        // Download links
-        try writer.writeAll("<td>");
-        if (ctx.repo) |r| {
-            try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> ", .{ r.name, tag.name });
-            try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{ r.name, tag.name });
-        } else {
-            try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> ", .{tag.name});
-            try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{tag.name});
-        }
-        try writer.writeAll("</td>");
-
-        // Author
-        try writer.writeAll("<td>");
-        try html.htmlEscape(writer, author_name);
-        try writer.writeAll("</td>");
-
-        // Message
-        try writer.writeAll("<td>");
-        const truncated = parsing.truncateString(info.message, @intCast(ctx.cfg.max_msg_len));
-        try html.htmlEscape(writer, truncated);
-        try writer.writeAll("</td>");
-
-        // Age
-        try writer.writeAll("<td class='age' data-timestamp='");
-        try writer.print("{d}", .{commit_time});
-        try writer.writeAll("'>");
-        try shared.formatAge(writer, commit_time);
-        try writer.writeAll("</td>");
-
-        try writer.writeAll("</tr>\n");
+        // Use shared rendering function
+        try shared.writeTagItem(ctx, writer, shared.TagItemInfo{
+            .name = info.tag.name,
+            .oid_str = info.oid_str,
+            .author_name = info.author_name,
+            .message = info.message,
+            .timestamp = info.timestamp,
+        }, "summary-tag");
     }
-
-    try html.writeTableFooter(writer);
 }
 
 pub fn about(ctx: *gitweb.Context, writer: anytype) !void {
