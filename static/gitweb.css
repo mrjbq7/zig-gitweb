@@ -247,6 +247,25 @@ pre.diff {
     color: #0366d6;
 }
 
+/* Diff file list */
+div.diff-filelist {
+    margin: 15px 0;
+    padding: 10px;
+    background: #f6f8fa;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+}
+
+div.diff-filelist table {
+    width: 100%;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+div.diff-filelist td {
+    padding: 3px 0;
+}
+
 /* Diff file sections for better separation */
 div.diff-file {
     margin: 20px 0;

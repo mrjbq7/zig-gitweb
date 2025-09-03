@@ -113,14 +113,14 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *git.Tree, base_path: []const u8, writer: anytype) !void {
-    const headers = [_][]const u8{ "Mode", "Name", "Size", "Age", "Last Commit", "" };
+    const headers = [_][]const u8{ "Mode", "Name", "Size", "" };
     try html.writeTableHeader(writer, &headers);
 
     // Parent directory link
     if (base_path.len > 0) {
         try html.writeTableRow(writer, null);
         try writer.writeAll("<td class='mode'>d---------</td>");
-        try writer.writeAll("<td colspan='5'><a href='?");
+        try writer.writeAll("<td colspan='3'><a href='?");
         if (ctx.repo) |r| {
             try writer.print("r={s}&", .{r.name});
         }
@@ -231,8 +231,6 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
             var blob = repo.lookupBlob(@constCast(entry_oid)) catch {
                 try writer.writeAll("-");
                 try writer.writeAll("</td>");
-                try writer.writeAll("<td class='age'>-</td>");
-                try writer.writeAll("<td>-</td>");
                 try writer.writeAll("<td>-</td>");
                 try writer.writeAll("</tr>\n");
                 continue;
@@ -245,34 +243,6 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
             try writer.writeAll("-");
         }
         try writer.writeAll("</td>");
-
-        // Get the last commit for this path
-        const last_commit_info = getLastCommitForPath(repo, full_path, ctx.allocator) catch blk: {
-            // If we can't get commit info, show placeholders
-            try writer.writeAll("<td class='age'>-</td>");
-            try writer.writeAll("<td class='last-commit'>-</td>");
-            break :blk null;
-        };
-
-        if (last_commit_info) |info| {
-            defer ctx.allocator.free(info.message);
-
-            // Age column
-            try writer.writeAll("<td class='age'>");
-            try shared.formatAge(writer, info.timestamp);
-            try writer.writeAll("</td>");
-
-            // Last commit message
-            try writer.writeAll("<td class='last-commit'>");
-            // Truncate to first line and limit length
-            const first_line_end = std.mem.indexOfScalar(u8, info.message, '\n') orelse info.message.len;
-            const summary = info.message[0..@min(first_line_end, 50)];
-            try html.htmlEscape(writer, summary);
-            if (first_line_end > 50) {
-                try writer.writeAll("...");
-            }
-            try writer.writeAll("</td>");
-        }
 
         // Log link
         try writer.writeAll("<td>");
@@ -294,117 +264,4 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
     }
 
     try html.writeTableFooter(writer);
-}
-
-const CommitInfo = struct {
-    message: []u8,
-    timestamp: i64,
-};
-
-fn getLastCommitForPath(repo: *git.Repository, path: []const u8, allocator: std.mem.Allocator) !CommitInfo {
-    // Create a revwalk
-    var walk = try repo.revwalk();
-    defer walk.free();
-
-    try walk.pushHead();
-    walk.setSorting(git.c.GIT_SORT_TIME);
-
-    // Limit the walk to avoid timeout on large repos
-    var checked_commits: usize = 0;
-    const max_commits: usize = 100; // Only check last 100 commits for performance
-
-    // Walk through commits looking for one that touches this path
-    while (walk.next()) |oid| {
-        if (checked_commits >= max_commits) {
-            // Fallback to avoid timeout
-            return error.PathNotFound;
-        }
-        checked_commits += 1;
-
-        var commit = repo.lookupCommit(&oid) catch continue;
-        defer commit.free();
-
-        var commit_tree = commit.tree() catch continue;
-        defer commit_tree.free();
-
-        // Check if this commit's tree contains changes to our path
-        // For the first parent (or no parents), check if path exists
-        const parent_count = commit.parentCount();
-
-        if (parent_count == 0) {
-            // Initial commit - check if path exists in tree
-            if (pathExistsInTree(&commit_tree, path)) {
-                return CommitInfo{
-                    .message = try allocator.dupe(u8, commit.summary()),
-                    .timestamp = commit.time(),
-                };
-            }
-        } else {
-            // Check diff with first parent
-            var parent = commit.parent(0) catch continue;
-            defer parent.free();
-
-            var parent_tree = parent.tree() catch continue;
-            defer parent_tree.free();
-
-            // Create diff
-            var diff = git.Diff.treeToTree(@ptrCast(repo.repo), @ptrCast(parent_tree.tree), @ptrCast(commit_tree.tree), null) catch continue;
-            defer diff.free();
-
-            // Check if our path is in the diff
-            const num_deltas = diff.numDeltas();
-            for (0..num_deltas) |delta_idx| {
-                const delta = diff.getDelta(delta_idx) orelse continue;
-
-                // Check both old and new paths
-                const old_path = std.mem.span(delta.old_file.path);
-                const new_path = std.mem.span(delta.new_file.path);
-
-                if (std.mem.eql(u8, old_path, path) or std.mem.eql(u8, new_path, path)) {
-                    // This commit touched our path
-                    return CommitInfo{
-                        .message = try allocator.dupe(u8, commit.summary()),
-                        .timestamp = commit.time(),
-                    };
-                }
-            }
-        }
-    }
-
-    return error.PathNotFound;
-}
-
-fn pathExistsInTree(tree_obj: *git.Tree, path: []const u8) bool {
-    // Split path into components and traverse tree
-    var path_parts = std.mem.tokenizeAny(u8, path, "/");
-    var current_tree = tree_obj;
-    var temp_tree: ?git.Tree = null;
-    defer if (temp_tree) |*t| t.free();
-
-    while (path_parts.next()) |part| {
-        const entry = current_tree.entryByName(part) orelse return false;
-
-        if (path_parts.peek() == null) {
-            // This is the last component - we found it
-            return true;
-        }
-
-        // Not the last component, must be a tree
-        if (c.git_tree_entry_type(@ptrCast(entry)) != c.GIT_OBJECT_TREE) {
-            return false;
-        }
-
-        // Look up the subtree
-        const tree_oid = git.c.git_tree_entry_id(@ptrCast(entry));
-        var subtree: ?*git.c.git_tree = null;
-        if (git.c.git_tree_lookup(&subtree, @ptrCast(@constCast(tree_obj.tree)), tree_oid) != 0) {
-            return false;
-        }
-
-        if (temp_tree) |*t| t.free();
-        temp_tree = git.Tree{ .tree = subtree.? };
-        current_tree = &temp_tree.?;
-    }
-
-    return false;
 }
