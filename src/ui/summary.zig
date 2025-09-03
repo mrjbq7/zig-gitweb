@@ -146,6 +146,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
         timestamp: i64,
         oid_str: [40]u8,
         author_name: []const u8,
+        message: []const u8,
     };
 
     // Collect branch info with timestamps
@@ -166,6 +167,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
             const oid_str = try git.oidToString(commit.id());
             const author_sig = commit.author();
             const commit_time = commit.time();
+            const commit_summary = commit.summary();
 
             var oid_buf: [40]u8 = undefined;
             @memcpy(&oid_buf, oid_str[0..40]);
@@ -175,6 +177,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
                 .timestamp = commit_time,
                 .oid_str = oid_buf,
                 .author_name = std.mem.span(author_sig.name),
+                .message = commit_summary,
             });
         }
     }
@@ -186,7 +189,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
         }
     }.lessThan);
 
-    try html.writeTableHeader(writer, &[_][]const u8{ "Branch", "Commit", "Author", "Age" });
+    try html.writeTableHeader(writer, &[_][]const u8{ "Branch", "Commit", "Author", "Message", "Age" });
 
     var shown: u32 = 0;
     for (branch_infos.items) |info| {
@@ -212,6 +215,12 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
         // Author
         try writer.writeAll("<td>");
         try html.htmlEscape(writer, info.author_name);
+        try writer.writeAll("</td>");
+
+        // Message
+        try writer.writeAll("<td>");
+        const truncated = parsing.truncateString(info.message, @intCast(ctx.cfg.max_msg_len));
+        try html.htmlEscape(writer, truncated);
         try writer.writeAll("</td>");
 
         // Age
@@ -254,6 +263,7 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
         tag: git.Tag,
         timestamp: i64,
         author_name: []const u8,
+        message: []const u8,
     };
 
     // Collect tag info with timestamps
@@ -277,11 +287,13 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
 
         const author_sig = commit.author();
         const commit_time = commit.time();
+        const commit_summary = commit.summary();
 
         try tag_infos.append(ctx.allocator, TagInfo{
             .tag = tag,
             .timestamp = commit_time,
             .author_name = std.mem.span(author_sig.name),
+            .message = commit_summary,
         });
     }
 
@@ -292,7 +304,7 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
         }
     }.lessThan);
 
-    try html.writeTableHeader(writer, &[_][]const u8{ "Tag", "Download", "Author", "Age" });
+    try html.writeTableHeader(writer, &[_][]const u8{ "Tag", "Download", "Author", "Message", "Age" });
 
     var shown: u32 = 0;
     for (tag_infos.items) |info| {
@@ -328,6 +340,12 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
         // Author
         try writer.writeAll("<td>");
         try html.htmlEscape(writer, author_name);
+        try writer.writeAll("</td>");
+
+        // Message
+        try writer.writeAll("<td>");
+        const truncated = parsing.truncateString(info.message, @intCast(ctx.cfg.max_msg_len));
+        try html.htmlEscape(writer, truncated);
         try writer.writeAll("</td>");
 
         // Age

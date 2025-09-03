@@ -33,7 +33,7 @@ pub fn refs(ctx: *gitweb.Context, writer: anytype) !void {
 fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void {
     try writer.writeAll("<h2>Branches</h2>\n");
 
-    const headers = [_][]const u8{ "Branch", "Commit", "Author", "Age" };
+    const headers = [_][]const u8{ "Branch", "Commit", "Author", "Message", "Age" };
     try html.writeTableHeader(writer, &headers);
 
     // Get all branches
@@ -100,6 +100,13 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
         try html.htmlEscape(writer, parsing.truncateString(std.mem.span(author.name), 30));
         try writer.writeAll("</td>");
 
+        // Message
+        try writer.writeAll("<td>");
+        const commit_summary = commit.summary();
+        const truncated = parsing.truncateString(commit_summary, 50);
+        try html.htmlEscape(writer, truncated);
+        try writer.writeAll("</td>");
+
         // Age
         try writer.writeAll("<td class='age'>");
         try shared.formatAge(writer, commit_time);
@@ -110,7 +117,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
     }
 
     if (count == 0) {
-        try writer.writeAll("<tr><td colspan='4'>No branches found</td></tr>\n");
+        try writer.writeAll("<tr><td colspan='5'>No branches found</td></tr>\n");
     }
 
     try html.writeTableFooter(writer);
@@ -119,7 +126,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !v
 fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void {
     try writer.writeAll("<h2>Tags</h2>\n");
 
-    const headers = [_][]const u8{ "Tag", "Download", "Author", "Age" };
+    const headers = [_][]const u8{ "Tag", "Download", "Author", "Message", "Age" };
     try html.writeTableHeader(writer, &headers);
 
     // Get all tags
@@ -157,6 +164,7 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
             .tagger_time = 0,
             .tagger_name = "",
             .message = "",
+            .commit_message = "",
         };
 
         const oid = c.git_reference_target(ref);
@@ -179,23 +187,34 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
             if (msg != null) {
                 tag_info.message = std.mem.span(msg);
             }
+
+            // Get commit message for annotated tags
+            var commit = repo.lookupCommit(&tag_info.target_oid) catch {
+                tag_info.commit_message = "";
+                try tags.append(ctx.allocator, tag_info);
+                continue;
+            };
+            defer commit.free();
+            tag_info.commit_message = commit.summary();
         } else {
             // Lightweight tag
             tag_info.target_oid = oid.*;
 
-            // Get commit time for lightweight tags
+            // Get commit time and message for lightweight tags
             var commit = repo.lookupCommit(&tag_info.target_oid) catch continue;
             defer commit.free();
             tag_info.tagger_time = commit.time();
+            tag_info.commit_message = commit.summary();
         }
 
         try tags.append(ctx.allocator, tag_info);
     }
 
-    // Sort tags by time (newest first)
+    // Sort tags reverse-alphabetically with natural/human sort
     std.sort.pdq(TagInfo, tags.items, {}, struct {
         fn lessThan(_: void, a: TagInfo, b: TagInfo) bool {
-            return a.tagger_time > b.tagger_time;
+            // Human/natural sort - compare version numbers properly
+            return humanCompare(b.name, a.name);  // Reversed for descending order
         }
     }.lessThan);
 
@@ -236,7 +255,7 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
             // For lightweight tags, show commit author
             var commit = repo.lookupCommit(&tag.target_oid) catch {
                 try writer.writeAll("-");
-                try writer.writeAll("</td><td>-</td></tr>\n");
+                try writer.writeAll("</td><td>-</td><td>-</td></tr>\n");
                 continue;
             };
             defer commit.free();
@@ -244,6 +263,12 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
             const author = commit.author();
             try html.htmlEscape(writer, parsing.truncateString(std.mem.span(author.name), 30));
         }
+        try writer.writeAll("</td>");
+
+        // Message
+        try writer.writeAll("<td>");
+        const truncated = parsing.truncateString(tag.commit_message, 50);
+        try html.htmlEscape(writer, truncated);
         try writer.writeAll("</td>");
 
         // Age
@@ -259,7 +284,7 @@ fn showTags(ctx: *gitweb.Context, repo: *git.Repository, writer: anytype) !void 
     }
 
     if (tags.items.len == 0) {
-        try writer.writeAll("<tr><td colspan='4'>No tags found</td></tr>\n");
+        try writer.writeAll("<tr><td colspan='5'>No tags found</td></tr>\n");
     }
 
     try html.writeTableFooter(writer);
@@ -272,4 +297,49 @@ const TagInfo = struct {
     tagger_time: i64,
     tagger_name: []const u8,
     message: []const u8,
+    commit_message: []const u8,
 };
+
+// Human/natural comparison function for version-like strings
+fn humanCompare(a: []const u8, b: []const u8) bool {
+    var i: usize = 0;
+    var j: usize = 0;
+    
+    while (i < a.len and j < b.len) {
+        // Check if we're at a number in both strings
+        const a_is_digit = std.ascii.isDigit(a[i]);
+        const b_is_digit = std.ascii.isDigit(b[j]);
+        
+        if (a_is_digit and b_is_digit) {
+            // Compare numbers numerically
+            var a_num: u64 = 0;
+            while (i < a.len and std.ascii.isDigit(a[i])) {
+                a_num = a_num * 10 + (a[i] - '0');
+                i += 1;
+            }
+            
+            var b_num: u64 = 0;
+            while (j < b.len and std.ascii.isDigit(b[j])) {
+                b_num = b_num * 10 + (b[j] - '0');
+                j += 1;
+            }
+            
+            if (a_num != b_num) {
+                return a_num < b_num;
+            }
+        } else if (!a_is_digit and !b_is_digit) {
+            // Compare characters
+            if (a[i] != b[j]) {
+                return a[i] < b[j];
+            }
+            i += 1;
+            j += 1;
+        } else {
+            // One is digit, one isn't - non-digit comes first
+            return !a_is_digit;
+        }
+    }
+    
+    // Shorter string comes first
+    return a.len < b.len;
+}
