@@ -456,8 +456,3 @@ fn renderCommitsByHourChart(writer: anytype, stats_data: *const StatsData) !void
     try writer.writeAll("</script>\n");
 }
 
-fn renderMostActiveFiles(ctx: *gitweb.Context, writer: anytype, stats_data: *const StatsData) !void {
-    _ = ctx;
-    _ = stats_data;
-    try writer.writeAll("<p>File activity tracking coming soon...</p>\n");
-}
