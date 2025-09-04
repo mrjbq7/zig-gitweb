@@ -60,8 +60,6 @@ span.btn-active:hover {
 /* Header */
 #header {
     width: 100%;
-    background: #f6f8fa;
-    border-bottom: 1px solid #d1d5da;
     padding: 16px;
     margin-bottom: 0;
 }
@@ -913,7 +911,6 @@ td.log-stats .deletions {
 div.footer {
     margin-top: 40px;
     padding: 20px 16px;
-    border-top: 1px solid #d1d5da;
     color: #57606a;
     font-size: 0.875rem;
     text-align: center;
@@ -1251,10 +1248,6 @@ table.ssdiff tr:hover {
         text-decoration: none;
     }
     
-    #header {
-        background: #161b22;
-        border-bottom-color: #30363d;
-    }
     
     #header td.sub {
         color: #8b949e;
@@ -1416,7 +1409,6 @@ table.ssdiff tr:hover {
     }
     
     div.footer {
-        border-top-color: #30363d;
         color: #8b949e;
     }
     

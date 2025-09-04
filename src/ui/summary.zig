@@ -393,6 +393,8 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
             .timestamp = info.timestamp,
         }, "refs");
     }
+
+    try writer.writeAll("</div>\n"); // refs-list
 }
 
 pub fn about(ctx: *gitweb.Context, writer: anytype) !void {

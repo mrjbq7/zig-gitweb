@@ -167,7 +167,6 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
             // Last activity
             if (repo.last_commit_time) |commit_time| {
                 try writer.writeAll("<span class='repo-activity'>\n");
-                try writer.writeAll("Updated ");
                 try shared.formatAge(writer, commit_time);
                 try writer.writeAll("</span>\n");
             }
