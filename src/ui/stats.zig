@@ -136,7 +136,7 @@ fn collectStatistics(ctx: *gitweb.Context, repo: *git.Repository) !StatsData {
         // Try to get the reference
         var ref = repo.getReference(ref_name) catch {
             // If direct reference fails, try with refs/heads/ prefix
-            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
             defer ctx.allocator.free(full_ref);
 
             var ref2 = repo.getReference(full_ref) catch {

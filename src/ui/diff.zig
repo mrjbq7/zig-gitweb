@@ -21,12 +21,12 @@ fn resolveRefToOid(repo: *git.Repository, ref_str: []const u8, allocator: std.me
             // Try as branch or tag reference
             var ref = repo.getReference(ref_str) catch {
                 // Try with refs/heads/ prefix
-                const full_ref = try std.fmt.allocPrintSentinel(allocator, "refs/heads/{s}", .{ref_str}, @as(u8, 0));
+                const full_ref = try std.fmt.allocPrintSentinel(allocator, "refs/heads/{s}", .{ref_str}, 0);
                 defer allocator.free(full_ref);
 
                 var ref2 = repo.getReference(full_ref) catch {
                     // Try with refs/tags/ prefix
-                    const tag_ref = try std.fmt.allocPrintSentinel(allocator, "refs/tags/{s}", .{ref_str}, @as(u8, 0));
+                    const tag_ref = try std.fmt.allocPrintSentinel(allocator, "refs/tags/{s}", .{ref_str}, 0);
                     defer allocator.free(tag_ref);
 
                     var ref3 = repo.getReference(tag_ref) catch return error.InvalidRef;
@@ -678,7 +678,7 @@ pub fn rawdiff(ctx: *gitweb.Context, writer: anytype) !void {
             // Try to get the reference
             var ref = git_repo.getReference(ref_name) catch {
                 // Try with refs/heads/ prefix
-                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
                 defer ctx.allocator.free(full_ref);
 
                 var ref2 = git_repo.getReference(full_ref) catch {

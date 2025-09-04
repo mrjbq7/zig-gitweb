@@ -144,10 +144,10 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
                 try walk.pushHead();
             } else {
                 // Try as branch/tag/ref
-                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
                 defer ctx.allocator.free(full_ref);
                 walk.pushRef(full_ref) catch {
-                    const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, @as(u8, 0));
+                    const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, 0);
                     defer ctx.allocator.free(tag_ref);
                     walk.pushRef(tag_ref) catch {
                         walk.pushRef(ref_name) catch {
@@ -163,11 +163,11 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
             try walk.pushHead();
         } else {
             // Try as full reference first (refs/heads/branch)
-            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
             defer ctx.allocator.free(full_ref);
             walk.pushRef(full_ref) catch {
                 // If that fails, try as tag (refs/tags/tagname)
-                const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, @as(u8, 0));
+                const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, 0);
                 defer ctx.allocator.free(tag_ref);
                 walk.pushRef(tag_ref) catch {
                     // If that also fails, try the name as-is (might be a full ref already)

@@ -280,7 +280,6 @@ table.list td.age {
 /* Age color coding */
 .age-recent {
     color: #1a7f37;  /* Green for days and weeks */
-    font-weight: 500;
 }
 
 .age-months {
@@ -1618,7 +1617,6 @@ table.ssdiff tr:hover {
     /* Age color coding for dark mode - inverted brightness */
     .age-recent {
         color: #3fb950;  /* Bright green for recent (days and weeks) */
-        font-weight: 500;
     }
     
     .age-months {

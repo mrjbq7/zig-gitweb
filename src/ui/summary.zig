@@ -137,7 +137,7 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
         try walk.pushHead();
     } else {
         // Push the specific branch reference
-        const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+        const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
         defer ctx.allocator.free(full_ref);
         walk.pushRef(full_ref) catch {
             // If the full ref doesn't work, try the name as-is (might be a tag or full ref already)

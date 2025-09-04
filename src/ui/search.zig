@@ -105,7 +105,7 @@ fn searchCommits(ctx: *gitweb.Context, repo: *git.Repository, search_term: []con
     } else {
         // Try to get the reference
         var ref = repo.getReference(ref_name) catch {
-            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
             defer ctx.allocator.free(full_ref);
 
             var ref2 = repo.getReference(full_ref) catch {
@@ -194,7 +194,7 @@ fn searchAuthor(ctx: *gitweb.Context, repo: *git.Repository, search_term: []cons
     } else {
         // Try to get the reference
         var ref = repo.getReference(ref_name) catch {
-            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
             defer ctx.allocator.free(full_ref);
 
             var ref2 = repo.getReference(full_ref) catch {
@@ -296,7 +296,7 @@ fn searchGrep(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const 
         } else {
             // Try to get the reference
             var ref = repo.getReference(ref_name) catch {
-                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
+                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
                 defer ctx.allocator.free(full_ref);
 
                 var ref2 = repo.getReference(full_ref) catch {
