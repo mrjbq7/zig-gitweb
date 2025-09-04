@@ -1316,6 +1316,50 @@ table.ssdiff tr:hover {
         color: #8b949e;
     }
     
+    /* Repository list items in dark mode */
+    .repo-item {
+        border-bottom-color: #30363d;
+    }
+    
+    .repo-item:hover {
+        background-color: #161b22;
+    }
+    
+    /* Commit items in dark mode */
+    .log-item {
+        border-bottom-color: #30363d;
+    }
+    
+    .log-item:hover {
+        background-color: #161b22;
+    }
+    
+    /* Branch and tag items in dark mode */
+    .refs-item {
+        border-bottom-color: #30363d;
+    }
+    
+    .refs-item:hover {
+        background-color: #161b22;
+    }
+    
+    .refs-item.refs-current {
+        background-color: #1c2128;
+    }
+    
+    /* Make text more visible in dark mode */
+    .log-message {
+        color: #c9d1d9;
+    }
+    
+    .refs-name a {
+        color: #c9d1d9;
+    }
+    
+    .refs-message {
+        color: #8b949e;
+    }
+    
     table.commit-info th {
         color: #8b949e;
     }
