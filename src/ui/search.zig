@@ -71,7 +71,7 @@ fn renderSearchForm(ctx: *gitweb.Context, writer: anytype) !void {
 
     // Search input
     try writer.writeAll("<div class='search-input'>\n");
-    try writer.print("<input type='text' name='q' value='{s}' placeholder='Search...' size='30' />\n", .{search_term});
+    try writer.print("<input type='text' name='q' value='{s}' placeholder='Search term' />\n", .{search_term});
 
     // Search type selector
     try writer.writeAll("<select name='type'>\n");
@@ -80,7 +80,7 @@ fn renderSearchForm(ctx: *gitweb.Context, writer: anytype) !void {
     try writeSearchOption(writer, "grep", "Files", search_type);
     try writer.writeAll("</select>\n");
 
-    try writer.writeAll("<input type='submit' value='Search' />\n");
+    try writer.writeAll("<button type='submit' class='btn'>Search</button>\n");
     try writer.writeAll("</div>\n");
     try writer.writeAll("</form>\n");
 }
@@ -147,8 +147,7 @@ fn searchCommitsFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git
     const search_lower = try std.ascii.allocLowerString(ctx.allocator, search_term);
     defer ctx.allocator.free(search_lower);
 
-    try writer.writeAll("<table class='search-results'>\n");
-    try writer.writeAll("<tr><th>Date</th><th>Author</th><th>Commit</th></tr>\n");
+    try writer.writeAll("<div class='log-list'>\n");
 
     while (walk.next()) |oid| {
         if (found_count >= max_results) break;
@@ -169,7 +168,7 @@ fn searchCommitsFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git
         }
     }
 
-    try writer.writeAll("</table>\n");
+    try writer.writeAll("</div>\n");
 
     if (found_count == 0) {
         try writer.writeAll("<p>No commits found containing the search term.</p>\n");
@@ -233,8 +232,7 @@ fn searchAuthorFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git.
     const search_lower = try std.ascii.allocLowerString(ctx.allocator, search_term);
     defer ctx.allocator.free(search_lower);
 
-    try writer.writeAll("<table class='search-results'>\n");
-    try writer.writeAll("<tr><th>Date</th><th>Author</th><th>Commit</th></tr>\n");
+    try writer.writeAll("<div class='log-list'>\n");
 
     while (walk.next()) |oid| {
         if (found_count >= max_results) break;
@@ -263,7 +261,7 @@ fn searchAuthorFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git.
         }
     }
 
-    try writer.writeAll("</table>\n");
+    try writer.writeAll("</div>\n");
 
     if (found_count == 0) {
         try writer.writeAll("<p>No commits found by authors matching the search term.</p>\n");
@@ -407,33 +405,18 @@ fn renderSearchResult(ctx: *gitweb.Context, commit: *git.Commit, oid: *const c.g
     const oid_str = try git.oidToString(oid);
     const parsed_msg = parsing.parseCommitMessage(message);
 
-    try writer.writeAll("<tr>");
+    // Use the shared commit item format
+    var oid_arr: [40]u8 = undefined;
+    _ = try std.fmt.bufPrint(&oid_arr, "{s}", .{oid_str});
 
-    // Date
-    try writer.writeAll("<td>");
-    try parsing.formatTimestamp(commit_time, writer);
-    try writer.writeAll("</td>");
+    const commit_info = shared.CommitItemInfo{
+        .oid_str = oid_arr,
+        .message = parsed_msg.subject,
+        .author_name = author_name,
+        .timestamp = commit_time,
+    };
 
-    // Author
-    try writer.writeAll("<td>");
-    try html.htmlEscape(writer, author_name);
-    try writer.writeAll("</td>");
-
-    // Commit message with link (include branch parameter)
-    try writer.writeAll("<td>");
-    try writer.writeAll("<a href='?");
-    if (ctx.repo) |r| {
-        try writer.print("r={s}&", .{r.name});
-    }
-    try writer.print("cmd=commit&id={s}", .{oid_str});
-    if (ctx.query.get("h")) |h| {
-        try writer.print("&h={s}", .{h});
-    }
-    try writer.print("'>{s}</a> ", .{oid_str[0..7]});
-    try html.htmlEscape(writer, parsed_msg.subject);
-    try writer.writeAll("</td>");
-
-    try writer.writeAll("</tr>\n");
+    try shared.writeCommitItem(ctx, writer, commit_info, "log");
 }
 
 fn renderGrepResult(ctx: *gitweb.Context, file_path: []const u8, line_num: usize, line_content: []const u8, writer: anytype) !void {

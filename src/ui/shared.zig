@@ -147,10 +147,7 @@ pub fn writeBranchItem(ctx: *gitweb.Context, writer: anytype, info: BranchItemIn
     }
     try writer.writeAll("'>\n");
 
-    // First line: branch name and message
-    try writer.print("<div class='{s}-top'>\n", .{css_prefix});
-
-    // Name
+    // First line: branch name only
     try writer.print("<div class='{s}-name'>\n", .{css_prefix});
     if (ctx.repo) |r| {
         try writer.print("<a href='?r={s}&cmd=log&h={s}'>{s}</a>", .{ r.name, info.name, info.name });
@@ -162,15 +159,14 @@ pub fn writeBranchItem(ctx: *gitweb.Context, writer: anytype, info: BranchItemIn
     }
     try writer.writeAll("</div>\n");
 
-    // Message
+    // Second line: commit message (full first line, no truncation)
     try writer.print("<div class='{s}-message'>\n", .{css_prefix});
-    const truncated = parsing.truncateString(info.message, 60);
-    try html.htmlEscape(writer, truncated);
+    // Parse the message to get just the first line
+    const parsed_msg = parsing.parseCommitMessage(info.message);
+    try html.htmlEscape(writer, parsed_msg.subject);
     try writer.writeAll("</div>\n");
 
-    try writer.writeAll("</div>\n"); // top
-
-    // Second line: metadata
+    // Third line: metadata
     try writer.print("<div class='{s}-meta'>\n", .{css_prefix});
 
     // Commit hash
@@ -205,10 +201,7 @@ pub const TagItemInfo = struct {
 pub fn writeTagItem(ctx: *gitweb.Context, writer: anytype, info: TagItemInfo, css_prefix: []const u8) !void {
     try writer.print("<div class='{s}-item'>\n", .{css_prefix});
 
-    // First line: tag name and message
-    try writer.print("<div class='{s}-top'>\n", .{css_prefix});
-
-    // Name
+    // First line: tag name only
     try writer.print("<div class='{s}-name'>\n", .{css_prefix});
     if (ctx.repo) |r| {
         try writer.print("<a href='?r={s}&cmd=tag&h={s}'>{s}</a>", .{ r.name, info.name, info.name });
@@ -217,13 +210,12 @@ pub fn writeTagItem(ctx: *gitweb.Context, writer: anytype, info: TagItemInfo, cs
     }
     try writer.writeAll("</div>\n");
 
-    // Message
+    // Second line: commit message (full first line, no truncation)
     try writer.print("<div class='{s}-message'>\n", .{css_prefix});
-    const truncated = parsing.truncateString(info.message, 60);
-    try html.htmlEscape(writer, truncated);
+    // Parse the message to get just the first line
+    const parsed_msg = parsing.parseCommitMessage(info.message);
+    try html.htmlEscape(writer, parsed_msg.subject);
     try writer.writeAll("</div>\n");
-
-    try writer.writeAll("</div>\n"); // top
 
     // Metadata
     try writer.print("<div class='{s}-meta'>\n", .{css_prefix});

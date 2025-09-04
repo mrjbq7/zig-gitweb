@@ -6,6 +6,45 @@ const git = @import("../git.zig");
 
 const c = git.c;
 
+fn resolveRefToOid(repo: *git.Repository, ref_str: []const u8, allocator: std.mem.Allocator) !c.git_oid {
+    // First try to parse as OID
+    if (git.stringToOid(ref_str)) |oid| {
+        return oid;
+    } else |_| {
+        // Not a valid OID, try as reference
+        if (std.mem.eql(u8, ref_str, "HEAD")) {
+            var head_ref = try repo.getHead();
+            defer head_ref.free();
+            const head_oid = head_ref.target() orelse return error.InvalidRef;
+            return head_oid.*;
+        } else {
+            // Try as branch or tag reference
+            var ref = repo.getReference(ref_str) catch {
+                // Try with refs/heads/ prefix
+                const full_ref = try std.fmt.allocPrintSentinel(allocator, "refs/heads/{s}", .{ref_str}, @as(u8, 0));
+                defer allocator.free(full_ref);
+
+                var ref2 = repo.getReference(full_ref) catch {
+                    // Try with refs/tags/ prefix
+                    const tag_ref = try std.fmt.allocPrintSentinel(allocator, "refs/tags/{s}", .{ref_str}, @as(u8, 0));
+                    defer allocator.free(tag_ref);
+
+                    var ref3 = repo.getReference(tag_ref) catch return error.InvalidRef;
+                    defer ref3.free();
+                    const oid = ref3.target() orelse return error.InvalidRef;
+                    return oid.*;
+                };
+                defer ref2.free();
+                const oid = ref2.target() orelse return error.InvalidRef;
+                return oid.*;
+            };
+            defer ref.free();
+            const oid = ref.target() orelse return error.InvalidRef;
+            return oid.*;
+        }
+    }
+}
+
 pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
 
@@ -20,53 +59,11 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     defer git_repo.close();
 
     // Get the first commit - either from ID or from branch/HEAD
-    const commit1_oid = if (ctx.query.get("id")) |commit_id| blk: {
-        // Parse commit ID
-        break :blk try git.stringToOid(commit_id);
-    } else blk: {
-        // No ID specified, get latest commit from branch or HEAD
-        const ref_name = ctx.query.get("h") orelse "HEAD";
-
-        if (std.mem.eql(u8, ref_name, "HEAD")) {
-            var head_ref = try git_repo.getHead();
-            defer head_ref.free();
-
-            const head_oid = head_ref.target() orelse {
-                try writer.writeAll("<p>Unable to get HEAD commit.</p>\n");
-                try writer.writeAll("</div>\n");
-                return;
-            };
-            break :blk head_oid.*;
-        } else {
-            // Try to get the reference
-            var ref = git_repo.getReference(ref_name) catch {
-                // Try with refs/heads/ prefix
-                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
-                defer ctx.allocator.free(full_ref);
-
-                var ref2 = git_repo.getReference(full_ref) catch {
-                    try writer.writeAll("<p>Unable to find branch reference.</p>\n");
-                    try writer.writeAll("</div>\n");
-                    return;
-                };
-                defer ref2.free();
-
-                const oid = ref2.target() orelse {
-                    try writer.writeAll("<p>Unable to get branch commit.</p>\n");
-                    try writer.writeAll("</div>\n");
-                    return;
-                };
-                break :blk oid.*;
-            };
-            defer ref.free();
-
-            const oid = ref.target() orelse {
-                try writer.writeAll("<p>Unable to get branch commit.</p>\n");
-                try writer.writeAll("</div>\n");
-                return;
-            };
-            break :blk oid.*;
-        }
+    const id1 = ctx.query.get("id") orelse ctx.query.get("h") orelse "HEAD";
+    const commit1_oid = resolveRefToOid(&git_repo, id1, ctx.allocator) catch {
+        try writer.print("<p>Unable to resolve reference: {s}</p>\n", .{id1});
+        try writer.writeAll("</div>\n");
+        return;
     };
 
     // Get the second commit ID (parent if not specified)
@@ -97,7 +94,11 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     const context_lines = std.fmt.parseInt(u32, context_lines_str, 10) catch 3;
 
     // Parse second commit ID
-    const oid2 = try git.stringToOid(id2);
+    const oid2 = resolveRefToOid(&git_repo, id2, ctx.allocator) catch {
+        try writer.print("<p>Unable to resolve reference: {s}</p>\n", .{id2});
+        try writer.writeAll("</div>\n");
+        return;
+    };
 
     // Get the commits
     var commit1 = try git_repo.lookupCommit(&commit1_oid);
@@ -137,6 +138,23 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     // Display diff header
     const oid1_str = try git.oidToString(&commit1_oid);
     const oid2_str = try git.oidToString(&oid2);
+
+    // Add comparison form
+    try writer.writeAll("<div class='diff-compare-form'>\n");
+    try writer.writeAll("<form method='get' action='?'>\n");
+    try writer.print("<input type='hidden' name='r' value='{s}' />\n", .{repo.name});
+    try writer.writeAll("<input type='hidden' name='cmd' value='diff' />\n");
+    if (path) |p| {
+        try writer.print("<input type='hidden' name='path' value='{s}' />\n", .{p});
+    }
+
+    try writer.writeAll("<div class='diff-compare-inputs'>\n");
+    try writer.print("<input type='text' name='id2' value='{s}' placeholder='From (older)' />", .{id2});
+    try writer.print("<input type='text' name='id' value='{s}' placeholder='To (newer)' />", .{id1});
+    try writer.writeAll("<button type='submit' class='btn'>Compare</button>\n");
+    try writer.writeAll("</div>\n");
+    try writer.writeAll("</form>\n");
+    try writer.writeAll("</div>\n");
 
     try writer.writeAll("<div class='diff-header'>\n");
     try writer.print("<strong>Comparing:</strong> ", .{});

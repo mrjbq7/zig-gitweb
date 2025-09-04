@@ -23,7 +23,35 @@ pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
     var commit_obj = if (ctx.query.get("id")) |commit_id| blk: {
         // Parse commit ID
         const oid = try git.stringToOid(commit_id);
-        break :blk try git_repo.lookupCommit(&oid);
+
+        // First try to lookup as any object type
+        var obj: ?*c.git_object = null;
+        if (c.git_object_lookup(&obj, @ptrCast(git_repo.repo), &oid, c.GIT_OBJECT_ANY) != 0) {
+            // If that fails, try as a commit directly
+            break :blk try git_repo.lookupCommit(&oid);
+        }
+        defer c.git_object_free(obj);
+
+        // If it's already a commit, use it directly
+        if (c.git_object_type(obj) == c.GIT_OBJECT_COMMIT) {
+            var commit_ptr: ?*c.git_commit = null;
+            if (c.git_commit_lookup(&commit_ptr, @ptrCast(git_repo.repo), &oid) != 0) {
+                try writer.writeAll("<p>Unable to lookup commit.</p>\n");
+                try writer.writeAll("</div>\n");
+                return;
+            }
+            break :blk git.Commit{ .commit = commit_ptr.? };
+        }
+
+        // Otherwise, peel to a commit (handles tags pointing to commits)
+        var peeled: ?*c.git_object = null;
+        if (c.git_object_peel(&peeled, obj, c.GIT_OBJECT_COMMIT) != 0) {
+            try writer.writeAll("<p>Unable to resolve to commit.</p>\n");
+            try writer.writeAll("</div>\n");
+            return;
+        }
+
+        break :blk git.Commit{ .commit = @ptrCast(peeled.?) };
     } else blk: {
         // No ID specified, get latest commit from branch or HEAD
         const ref_name = ctx.query.get("h") orelse "HEAD";

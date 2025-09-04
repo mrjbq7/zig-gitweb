@@ -5,6 +5,8 @@ const shared = @import("shared.zig");
 const git = @import("../git.zig");
 const parsing = @import("../parsing.zig");
 
+const c = git.c;
+
 pub fn summary(ctx: *gitweb.Context, writer: anytype) !void {
     const repo = ctx.repo orelse return error.NoRepo;
 
@@ -237,7 +239,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
             const oid_str = try git.oidToString(commit.id());
             const author_sig = commit.author();
             const commit_time = commit.time();
-            const commit_summary = commit.summary();
+            const commit_message = commit.message(); // Get full message, not summary
 
             var oid_buf: [40]u8 = undefined;
             @memcpy(&oid_buf, oid_str[0..40]);
@@ -249,7 +251,7 @@ fn showBranches(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void
                 .timestamp = commit_time,
                 .oid_str = oid_buf,
                 .author_name = std.mem.span(author_sig.name),
-                .message = commit_summary,
+                .message = commit_message,
                 .is_head = is_head,
             });
         }
@@ -327,7 +329,22 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
     for (tags) |tag| {
         const target = @constCast(&tag.ref).target() orelse continue;
 
-        // Try to get tag object or fall back to commit
+        // Try to get tag message from annotated tag, or commit message from lightweight tag
+        var message_to_use: []const u8 = "";
+
+        // Check if this is an annotated tag
+        var tag_obj: ?*c.git_tag = null;
+        if (c.git_tag_lookup(&tag_obj, @ptrCast(git_repo.repo), target) == 0 and tag_obj != null) {
+            defer c.git_object_free(@ptrCast(tag_obj));
+
+            // Get the tag message for annotated tags
+            const tag_msg = c.git_tag_message(tag_obj);
+            if (tag_msg != null) {
+                message_to_use = std.mem.span(tag_msg);
+            }
+        }
+
+        // Get the commit that the tag points to
         var obj = @constCast(&tag.ref).peel(@import("../git.zig").c.GIT_OBJECT_COMMIT) catch continue;
         defer obj.free();
 
@@ -337,7 +354,11 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
         const oid_str = try git.oidToString(target);
         const author_sig = commit.author();
         const commit_time = commit.time();
-        const commit_summary = commit.summary();
+
+        // If we didn't get a tag message (lightweight tag), use commit message
+        if (message_to_use.len == 0) {
+            message_to_use = commit.message();
+        }
 
         var oid_buf: [40]u8 = undefined;
         @memcpy(&oid_buf, oid_str[0..40]);
@@ -347,7 +368,7 @@ fn showTags(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !void {
             .timestamp = commit_time,
             .oid_str = oid_buf,
             .author_name = std.mem.span(author_sig.name),
-            .message = commit_summary,
+            .message = message_to_use,
         });
     }
 

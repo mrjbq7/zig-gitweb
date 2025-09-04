@@ -262,16 +262,19 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
         const oid_str = try git.oidToString(commit.id());
         const author_sig = commit.author();
         const commit_time = commit.time();
-        const summary = commit.summary();
+        const full_message = commit.message();
 
         var oid_buf: [40]u8 = undefined;
         @memcpy(&oid_buf, oid_str[0..40]);
 
         // Determine message to show
+        // When collapsed: show full first line (subject)
+        // When expanded: show complete message
+        const parsed_msg = parsing.parseCommitMessage(full_message);
         const message = if (expanded)
-            commit.message()
+            full_message
         else
-            parsing.truncateString(summary, @intCast(ctx.cfg.max_msg_len));
+            parsed_msg.subject;
 
         // Get refs for this commit if any
         const refs = if (refs_map.get(&oid_str)) |ref_list|
@@ -284,9 +287,24 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
 
         // First line: commit message with inline refs
         try writer.writeAll("<div class='log-message'>\n");
-        try html.htmlEscape(writer, message);
 
-        // Show refs inline if present
+        // When expanded, convert newlines to <br> tags
+        if (expanded) {
+            var lines = std.mem.splitScalar(u8, message, '\n');
+            var first_line = true;
+            while (lines.next()) |line| {
+                if (!first_line) {
+                    try writer.writeAll("<br/>\n");
+                }
+                try html.htmlEscape(writer, line);
+                first_line = false;
+            }
+        } else {
+            // When collapsed, just show the first line (no trailing newline)
+            try html.htmlEscape(writer, message);
+        }
+
+        // Show refs inline if present (on the same line)
         if (refs) |ref_list| {
             try writer.writeAll(" ");
             for (ref_list) |ref_info| {

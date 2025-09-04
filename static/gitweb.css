@@ -336,6 +336,34 @@ div.diff {
     margin: 16px 0;
 }
 
+div.diff-compare-form {
+    margin: 16px 0;
+}
+
+div.diff-compare-inputs {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+div.diff-compare-inputs input[type="text"] {
+    padding: 6px 10px;
+    font-size: 0.9rem;
+    border: 1px solid #d1d5da;
+    border-radius: 4px;
+    flex: 1;
+    min-width: 250px;
+    max-width: 400px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+div.diff-compare-inputs input[type="text"]:focus {
+    outline: none;
+    border-color: #0969da;
+    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+}
+
 div.diff-options {
     margin: 16px 0;
     display: flex;
@@ -604,10 +632,11 @@ table.blame td.code {
         font-size: 0.875rem;
     }
     
-    .log-author {
+    /* Remove the author reordering - keep it inline with other metadata */
+    /* .log-author {
         order: -1;
         width: 100%;
-    }
+    } */
 }
 
 div.log h2 {
@@ -687,18 +716,13 @@ td.log-stats .deletions {
     background-color: #fff8f0;
 }
 
-.refs-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-}
+/* refs-top no longer used - name and message are separate now */
 
 .refs-name {
     font-size: 1.05rem;
     font-weight: 600;
     line-height: 1.6;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .refs-name a {
@@ -735,7 +759,7 @@ td.log-stats .deletions {
 .refs-message {
     font-size: 0.925rem;
     color: #586069;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -777,15 +801,12 @@ td.log-stats .deletions {
         padding: 8px 12px;
     }
     
-    .refs-top {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-    }
+    /* refs-top no longer used */
     
-    .refs-download {
+    /* Keep download links on the same line */
+    /* .refs-download {
         margin-top: 4px;
-    }
+    } */
     
     .refs-meta {
         flex-wrap: wrap;
@@ -1029,46 +1050,32 @@ div.stats-summary {
 /* Search form and results */
 form.search-form {
     margin: 20px 0;
-    padding: 15px;
-    background: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px;
 }
 
 div.search-input {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 div.search-input input[type="text"] {
     flex: 1;
-    padding: 8px 12px;
+    min-width: 250px;
+    max-width: 400px;
+    padding: 6px 10px;
     border: 1px solid #d1d5da;
     border-radius: 4px;
-    font-size: 0.875rem;
+    font-size: 0.9rem;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 div.search-input select {
-    padding: 8px 12px;
+    padding: 6px 10px;
     border: 1px solid #d1d5da;
     border-radius: 4px;
     background: white;
-    font-size: 0.875rem;
-}
-
-div.search-input input[type="submit"] {
-    padding: 8px 16px;
-    background: #238636;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.875rem;
-}
-
-div.search-input input[type="submit"]:hover {
-    background: #2c974b;
+    font-size: 0.9rem;
 }
 
 table.search-results {
@@ -1330,6 +1337,25 @@ table.ssdiff tr:hover {
         color: #8b949e;
     }
 
+    div.diff-compare-inputs input[type="text"],
+    div.search-input input[type="text"] {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+    
+    div.diff-compare-inputs input[type="text"]:focus,
+    div.search-input input[type="text"]:focus {
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+    }
+    
+    div.search-input select {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+    
     pre.diff, pre.blob {
         background: #161b22;
         border-color: #30363d;
@@ -1504,6 +1530,13 @@ table.ssdiff tr:hover {
     }
 }
 
+/* Medium screens */
+@media (max-width: 900px) {
+    div.diff-compare-inputs input[type="text"] {
+        min-width: 200px;
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     div.content {
@@ -1526,4 +1559,3 @@ table.ssdiff tr:hover {
     .branch-selector {
         padding: 8px 12px;
     }
-}
