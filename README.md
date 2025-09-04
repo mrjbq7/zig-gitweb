@@ -1,8 +1,8 @@
 # zig-gitweb
 
 A fast web frontend for git repositories, implemented in Zig. This is
-inspired by cgit, providing a lightweight CGI application for browsing git
-repositories through a web interface.
+implemented as a lightweight CGI application for browsing git repositories
+through a web interface.
 
 ## Features
 
@@ -66,11 +66,55 @@ ScriptAlias /git "/path/to/gitweb.cgi"
 #### Nginx Configuration Example (with fcgiwrap)
 
 ```nginx
-location ~ /git {
-    fastcgi_pass unix:/var/run/fcgiwrap.socket;
-    include fastcgi_params;
-    fastcgi_param SCRIPT_FILENAME /path/to/gitweb.cgi;
+server {
+    listen 80;
+    server_name zig-gitweb;
+    root /zig-gitweb;
+
+    # Index redirects to cgi
+    location = / { rewrite ^ /cgi-bin/gitweb.cgi last; }
+
+    # Try and load static files
+    location / { try_files $uri $uri/ @gitweb; }
+
+    # Otherwise forward to the cgi
+    location @gitweb { rewrite ^ /cgi-bin/gitweb.cgi?url=$uri&$args last; }
+
+    # Allow only *.cgi to execute
+    location ~ ^/cgi-bin/(.+\.cgi)$ {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/cgi-bin/$1;
+        fastcgi_param SCRIPT_NAME     /cgi-bin/$1;
+        fastcgi_param PATH_INFO       "";
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+    }
+
+    # Everything else under /cgi-bin is blocked (prefix location has lower prio than regex)
+    location /cgi-bin/ { return 404; }
 }
+```
+
+#### Factor Configuration Example
+
+You can use [Factor](https://factorcode.org) to serve this also:
+
+```factor
+TUPLE: zig-gitweb < file-responder ;
+
+: <zig-gitweb> ( root -- responder )
+    zig-gitweb new
+        swap >>root
+        [ (serve-static) ] >>hook
+        H{ } clone >>special
+    enable-cgi ;
+
+M: zig-gitweb call-responder*
+    dup file-responder set
+    over [ f ] [ "/" join serving-path file-exists? ] if-empty [
+        url get
+            rot "/" join "url" set-query-param
+            "gitweb.cgi" >>path drop { "gitweb.cgi" } swap
+    ] unless call-next-method ;
 ```
 
 ### Testing Locally
@@ -187,9 +231,9 @@ Static files are located in the `static/` directory:
 ### Building
 
 ```bash
-zig build              # Build the project
-zig build test         # Run tests
-zig build -Doptimize=ReleaseFast  # Build optimized version
+zig build                 # Build the project
+zig build test            # Run tests
+zig build --release=fast  # Build optimized version
 ```
 
 ### Project Structure
@@ -208,20 +252,17 @@ zig-gitweb/
 │       ├── tree.zig
 │       └── ...
 ├── static/            # CSS, JS, and other static files
-├── build.zig         # Build configuration
-└── build.zig.zon     # Package manifest
+├── build.zig          # Build configuration
+└── build.zig.zon      # Package manifest
 ```
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues and pull requests.
 
-## License
-
-This project is a port of cgit to Zig. Please refer to the original cgit license for licensing information.
-
 ## Acknowledgments
 
-- Original [cgit](https://git.zx2c4.com/cgit/) project by Lars Hjemli and Jason A. Donenfeld
-- [libgit2](https://libgit2.org/) for git repository access
-- [Zig](https://ziglang.org/) programming language
+This project is inspired by [cgit](https://git.zx2c4.com/cgit/), but freshly
+implemented in [Zig](https://ziglang.org). It currently uses
+[libgit2](https://libgit2.org/) for git repository access, and
+[zlib](https://zlib.net/) for compression.
