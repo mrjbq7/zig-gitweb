@@ -191,8 +191,9 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
         }
     }
 
-    // Set sorting
-    walk.setSorting(@intCast(c.GIT_SORT_TIME | if (ctx.repo.?.commit_sort == .topo) c.GIT_SORT_TOPOLOGICAL else 0));
+    // Set sorting - use natural order unless topological is requested
+    // Natural order (NONE) is faster than TIME sorting as it doesn't require timestamp comparisons
+    walk.setSorting(@intCast(if (ctx.repo.?.commit_sort == .topo) c.GIT_SORT_TOPOLOGICAL else c.GIT_SORT_NONE));
 
     // Start log list
     try writer.writeAll("<div class='log-list'>\n");
