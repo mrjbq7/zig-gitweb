@@ -19,13 +19,6 @@ pub fn search(ctx: *gitweb.Context, writer: anytype) !void {
     };
 
     const search_type = ctx.query.get("type") orelse "commit";
-    const branch = ctx.query.get("h");
-
-    if (branch) |h| {
-        try writer.print("<h2>Search Results for '{s}' in branch '{s}'</h2>\n", .{ search_term, h });
-    } else {
-        try writer.print("<h2>Search Results for '{s}'</h2>\n", .{search_term});
-    }
 
     // Show search form at top
     try renderSearchForm(ctx, writer);
@@ -98,6 +91,9 @@ fn writeSearchOption(writer: anytype, value: []const u8, label: []const u8, curr
 
 fn searchCommits(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const u8, writer: anytype) !void {
     try writer.writeAll("<h3>Commits</h3>\n");
+    try writer.writeAll("<p class='search-description'>Showing commits with messages containing '<strong>");
+    try html.htmlEscape(writer, search_term);
+    try writer.writeAll("</strong>':</p>\n");
 
     var walk = try repo.revwalk();
     defer walk.free();
@@ -184,6 +180,9 @@ fn searchCommitsFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git
 
 fn searchAuthor(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const u8, writer: anytype) !void {
     try writer.writeAll("<h3>Authors</h3>\n");
+    try writer.writeAll("<p class='search-description'>Showing commits by authors matching '<strong>");
+    try html.htmlEscape(writer, search_term);
+    try writer.writeAll("</strong>':</p>\n");
 
     var walk = try repo.revwalk();
     defer walk.free();
@@ -277,6 +276,9 @@ fn searchAuthorFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git.
 
 fn searchGrep(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const u8, writer: anytype) !void {
     try writer.writeAll("<h3>Files</h3>\n");
+    try writer.writeAll("<p class='search-description'>Showing files containing '<strong>");
+    try html.htmlEscape(writer, search_term);
+    try writer.writeAll("</strong>':</p>\n");
 
     // Get commit based on branch parameter
     const ref_name = ctx.query.get("h") orelse "HEAD";
@@ -551,35 +553,47 @@ fn collectPickaxeMatches(ctx: *gitweb.Context, repo: *git.Repository, old_tree: 
 
         const file_path = if (delta.new_file.path) |p| std.mem.span(p) else if (delta.old_file.path) |p| std.mem.span(p) else continue;
 
-        // Get old and new file content
-        const old_content = if (delta.old_file.id.id[0] != 0) blk: {
-            var old_blob = repo.lookupBlob(&delta.old_file.id) catch break :blk "";
+        // Get old file content
+        const old_count = if (delta.old_file.id.id[0] != 0) blk: {
+            var old_blob = repo.lookupBlob(&delta.old_file.id) catch break :blk 0;
             defer old_blob.free();
-            if (old_blob.isBinary()) break :blk "";
-            break :blk old_blob.content();
-        } else "";
+            if (old_blob.isBinary()) break :blk 0;
+            break :blk countOccurrences(old_blob.content(), search_term);
+        } else 0;
 
-        const new_content = if (delta.new_file.id.id[0] != 0) blk: {
-            var new_blob = repo.lookupBlob(&delta.new_file.id) catch break :blk "";
+        // Get new file content
+        const new_count = if (delta.new_file.id.id[0] != 0) blk: {
+            var new_blob = repo.lookupBlob(&delta.new_file.id) catch break :blk 0;
             defer new_blob.free();
-            if (new_blob.isBinary()) break :blk "";
-            break :blk new_blob.content();
-        } else "";
+            if (new_blob.isBinary()) break :blk 0;
+            break :blk countOccurrences(new_blob.content(), search_term);
+        } else 0;
 
         // Check if occurrence count changed
-        const old_count = countOccurrences(old_content, search_term);
-        const new_count = countOccurrences(new_content, search_term);
-
         if (old_count != new_count) {
             var match_lines = std.ArrayList(MatchLine).empty;
 
-            // Find lines that were added or removed
+            // Find lines that were added or removed - now we need to re-open the blob to get content
             if (new_count > old_count) {
                 // Term was added - find the new lines
-                try findMatchingLines(ctx, new_content, search_term, true, &match_lines);
+                if (delta.new_file.id.id[0] != 0) {
+                    var new_blob = repo.lookupBlob(&delta.new_file.id) catch continue;
+                    defer new_blob.free();
+                    if (!new_blob.isBinary()) {
+                        const content = new_blob.content();
+                        try findMatchingLines(ctx, content, search_term, true, &match_lines);
+                    }
+                }
             } else {
                 // Term was removed - find the old lines
-                try findMatchingLines(ctx, old_content, search_term, false, &match_lines);
+                if (delta.old_file.id.id[0] != 0) {
+                    var old_blob = repo.lookupBlob(&delta.old_file.id) catch continue;
+                    defer old_blob.free();
+                    if (!old_blob.isBinary()) {
+                        const content = old_blob.content();
+                        try findMatchingLines(ctx, content, search_term, false, &match_lines);
+                    }
+                }
             }
 
             if (match_lines.items.len > 0) {
@@ -619,8 +633,10 @@ fn collectInitialMatchesRecursive(ctx: *gitweb.Context, repo: *git.Repository, t
 
             if (!blob.isBinary()) {
                 const content = blob.content();
+
                 if (countOccurrences(content, search_term) > 0) {
                     var match_lines = std.ArrayList(MatchLine).empty;
+                    // findMatchingLines will duplicate the individual lines it finds
                     try findMatchingLines(ctx, content, search_term, true, &match_lines);
 
                     if (match_lines.items.len > 0) {
