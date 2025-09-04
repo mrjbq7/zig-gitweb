@@ -20,6 +20,16 @@ pub fn writeHeader(ctx: *gitweb.Context, writer: anytype) !void {
         try writer.print("<link rel='shortcut icon' href='{s}'/>\n", .{ctx.cfg.favicon});
     }
 
+    // Add Atom feed link if we're viewing a repository
+    if (ctx.repo) |repo| {
+        try writer.print("<link rel='alternate' type='application/atom+xml' title='{s} Atom Feed' href='?r={s}&cmd=atom", .{ repo.name, repo.name });
+        // Include branch if specified
+        if (ctx.query.get("h")) |branch| {
+            try writer.print("&h={s}", .{branch});
+        }
+        try writer.writeAll("'/>\n");
+    }
+
     if (ctx.cfg.head_include) |include| {
         try includeFile(writer, include);
     }
