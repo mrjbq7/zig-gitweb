@@ -455,4 +455,3 @@ fn renderCommitsByHourChart(writer: anytype, stats_data: *const StatsData) !void
     try writer.writeAll("});\n");
     try writer.writeAll("</script>\n");
 }
-

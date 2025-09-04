@@ -35,12 +35,12 @@ pub fn snapshot(ctx: *gitweb.Context, writer: anytype) !void {
     // Resolve reference
     var oid = git.stringToOid(ref_str) catch blk: {
         // Try with refs/tags/ prefix first (most common for snapshots)
-        const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_str}, @as(u8, 0));
+        const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_str}, 0);
         defer ctx.allocator.free(tag_ref);
 
         var ref = git_repo.getReference(tag_ref) catch {
             // Try with refs/heads/ prefix
-            const branch_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_str}, @as(u8, 0));
+            const branch_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_str}, 0);
             defer ctx.allocator.free(branch_ref);
 
             var ref2 = git_repo.getReference(branch_ref) catch {
@@ -100,8 +100,8 @@ pub fn snapshot(ctx: *gitweb.Context, writer: anytype) !void {
 
     // Generate archive based on format
     switch (format) {
-        .tar, .tar_gz, .tar_bz2, .tar_xz => try generateTarArchive(ctx, &git_repo, repo.path, &tree, prefix, path_filter, format, writer),
-        .zip => try generateZipArchive(ctx, &git_repo, &tree, prefix, path_filter, writer),
+        .tar, .tar_gz, .tar_bz2, .tar_xz => try generateTarArchive(ctx, &git_repo, repo.path, &tree, prefix, ref_str, path_filter, format, writer),
+        .zip => try generateZipArchive(ctx, &git_repo, repo.path, &tree, prefix, ref_str, path_filter, writer),
     }
 }
 
@@ -119,14 +119,13 @@ fn generateTarArchive(
     repo_path: []const u8,
     tree: *git.Tree,
     prefix: []const u8,
+    ref_str: []const u8,
     path_filter: ?[]const u8,
     format: Format,
     writer: anytype,
 ) !void {
-    _ = ctx;
     _ = repo;
     _ = tree;
-    _ = prefix;
     _ = path_filter;
 
     // Create pipes for tar command
@@ -150,20 +149,50 @@ fn generateTarArchive(
         _ = c.dup2(write_fd, 1); // Redirect stdout to pipe
         _ = c.close(write_fd);
 
-        // Execute git archive command
-        const git_cmd = "git";
-        const archive_args = switch (format) {
-            .tar => [_:null]?[*:0]const u8{ git_cmd, "archive", "--format=tar", "HEAD" },
-            .tar_gz => [_:null]?[*:0]const u8{ git_cmd, "archive", "--format=tar.gz", "HEAD" },
-            .tar_bz2 => [_:null]?[*:0]const u8{ git_cmd, "archive", "--format=tar", "HEAD" },
-            .tar_xz => [_:null]?[*:0]const u8{ git_cmd, "archive", "--format=tar", "HEAD" },
-            else => unreachable,
-        };
+        // Build the prefix argument with trailing slash
+        const prefix_arg = try std.fmt.allocPrintSentinel(ctx.allocator, "{s}/", .{prefix}, 0);
+        defer ctx.allocator.free(prefix_arg);
 
+        // Build the ref argument
+        const ref_arg = try std.heap.c_allocator.dupeZ(u8, ref_str);
+        defer std.heap.c_allocator.free(ref_arg);
+
+        // Change to repository directory
         const c_path = try std.heap.c_allocator.dupeZ(u8, repo_path);
         defer std.heap.c_allocator.free(c_path);
         _ = c.chdir(c_path);
-        _ = c.execvp(git_cmd, @ptrCast(&archive_args));
+
+        // Execute git archive command, potentially with compression
+        const git_cmd = "git";
+
+        switch (format) {
+            .tar => {
+                const archive_args = [_:null]?[*:0]const u8{ git_cmd, "archive", "--format=tar", "--prefix", prefix_arg, ref_arg, null };
+                _ = c.execvp(git_cmd, @ptrCast(&archive_args));
+            },
+            .tar_gz => {
+                const archive_args = [_:null]?[*:0]const u8{ git_cmd, "archive", "--format=tar.gz", "--prefix", prefix_arg, ref_arg, null };
+                _ = c.execvp(git_cmd, @ptrCast(&archive_args));
+            },
+            .tar_bz2 => {
+                // git doesn't support tar.bz2 directly, so we pipe through bzip2
+                const sh_cmd = "/bin/sh";
+                const cmd_str = try std.fmt.allocPrintSentinel(ctx.allocator, "git archive --format=tar --prefix={s}/ {s} | bzip2", .{ prefix, ref_str }, 0);
+                defer ctx.allocator.free(cmd_str);
+                const sh_args = [_:null]?[*:0]const u8{ sh_cmd, "-c", cmd_str, null };
+                _ = c.execvp(sh_cmd, @ptrCast(&sh_args));
+            },
+            .tar_xz => {
+                // git doesn't support tar.xz directly, so we pipe through xz
+                const sh_cmd = "/bin/sh";
+                const cmd_str = try std.fmt.allocPrintSentinel(ctx.allocator, "git archive --format=tar --prefix={s}/ {s} | xz", .{ prefix, ref_str }, 0);
+                defer ctx.allocator.free(cmd_str);
+                const sh_args = [_:null]?[*:0]const u8{ sh_cmd, "-c", cmd_str, null };
+                _ = c.execvp(sh_cmd, @ptrCast(&sh_args));
+            },
+            else => unreachable,
+        }
+
         std.process.exit(1);
     }
 
@@ -188,18 +217,72 @@ fn generateTarArchive(
 fn generateZipArchive(
     ctx: *gitweb.Context,
     repo: *git.Repository,
+    repo_path: []const u8,
     tree: *git.Tree,
     prefix: []const u8,
+    ref_str: []const u8,
     path_filter: ?[]const u8,
     writer: anytype,
 ) !void {
-    _ = ctx;
     _ = repo;
     _ = tree;
-    _ = prefix;
     _ = path_filter;
 
-    // For ZIP archives, we would need to implement ZIP format generation
-    // or use an external command. For now, return a placeholder.
-    try writer.writeAll("ZIP archive generation not yet implemented\n");
+    // Git has built-in ZIP support, use git archive --format=zip
+    // Create pipes for git archive command
+    var pipe_fds: [2]c_int = undefined;
+    if (c.pipe(&pipe_fds) != 0) return error.PipeCreationFailed;
+
+    const read_fd = pipe_fds[0];
+    const write_fd = pipe_fds[1];
+
+    // Fork process for zip generation
+    const pid = c.fork();
+    if (pid < 0) {
+        _ = c.close(read_fd);
+        _ = c.close(write_fd);
+        return error.ForkFailed;
+    }
+
+    if (pid == 0) {
+        // Child process: run git archive command
+        _ = c.close(read_fd);
+        _ = c.dup2(write_fd, 1); // Redirect stdout to pipe
+        _ = c.close(write_fd);
+
+        // Build the prefix argument with trailing slash
+        const prefix_arg = try std.fmt.allocPrintSentinel(ctx.allocator, "{s}/", .{prefix}, 0);
+        defer ctx.allocator.free(prefix_arg);
+
+        // Build the ref argument
+        const ref_arg = try std.heap.c_allocator.dupeZ(u8, ref_str);
+        defer std.heap.c_allocator.free(ref_arg);
+
+        // Execute git archive command with zip format
+        const git_cmd = "git";
+        const archive_args = [_:null]?[*:0]const u8{ git_cmd, "archive", "--format=zip", "--prefix", prefix_arg, ref_arg, null };
+
+        const c_path = try std.heap.c_allocator.dupeZ(u8, repo_path);
+        defer std.heap.c_allocator.free(c_path);
+        _ = c.chdir(c_path);
+        _ = c.execvp(git_cmd, @ptrCast(&archive_args));
+        std.process.exit(1);
+    }
+
+    // Parent process: read from pipe and write to output
+    _ = c.close(write_fd);
+
+    var buffer: [8192]u8 = undefined;
+    while (true) {
+        const bytes_read = c.read(read_fd, &buffer, buffer.len);
+        if (bytes_read <= 0) break;
+
+        try writer.writeAll(buffer[0..@intCast(bytes_read)]);
+    }
+
+    _ = c.close(read_fd);
+
+    // Wait for child process
+    var status: c_int = undefined;
+    _ = c.waitpid(pid, &status, 0);
 }
