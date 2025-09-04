@@ -88,7 +88,18 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
 
             if (c.git_tree_entry_type(@ptrCast(entry)) != c.GIT_OBJECT_TREE) {
                 // This is a blob, redirect to blob view
-                try writer.writeAll("<script>window.location='?cmd=blob&path=");
+                try writer.writeAll("<script>window.location='?");
+                if (ctx.repo) |r| {
+                    try writer.print("r={s}&", .{r.name});
+                }
+                try writer.writeAll("cmd=blob");
+                // Preserve commit ID or branch
+                if (ctx.query.get("id")) |id| {
+                    try writer.print("&id={s}", .{id});
+                } else if (ctx.query.get("h")) |branch| {
+                    try writer.print("&h={s}", .{branch});
+                }
+                try writer.writeAll("&path=");
                 try html.urlEncodePath(writer, path);
                 try writer.writeAll("';</script>");
                 try writer.writeAll("</div>\n");

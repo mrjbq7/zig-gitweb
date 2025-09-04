@@ -78,11 +78,22 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
         commit_oid = c.git_object_id(@ptrCast(commit_obj.obj)).*;
     }
 
-    // Create blame options
+    // Create blame options with performance optimizations
     var blame_opts = std.mem.zeroes(c.git_blame_options);
     _ = c.git_blame_options_init(&blame_opts, c.GIT_BLAME_OPTIONS_VERSION);
 
-    // Don't set newest_commit - let git_blame_file figure it out from HEAD
+    // Performance optimizations:
+    // 1. Set the newest_commit to limit history traversal
+    blame_opts.newest_commit = commit_oid;
+
+    // 2. Use first parent only for merge commits (much faster)
+    blame_opts.flags |= c.GIT_BLAME_FIRST_PARENT;
+
+    // 3. Don't track copies - this is expensive
+    blame_opts.flags = c.GIT_BLAME_NORMAL | c.GIT_BLAME_FIRST_PARENT;
+
+    // 4. Set minimum match characters to avoid tiny matches
+    blame_opts.min_match_characters = 20;
 
     // Generate blame
     var blame_obj: ?*c.git_blame = null;
@@ -161,8 +172,10 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
 
     var lines = std.mem.splitScalar(u8, content, '\n');
     var line_num: u32 = 1;
-    var prev_oid: c.git_oid = std.mem.zeroes(c.git_oid);
-    var prev_author: []const u8 = "";
+    var prev_hunk: ?*const c.git_blame_hunk = null;
+
+    // Pre-allocate buffer for OID strings
+    var oid_buf: [41]u8 = undefined;
 
     while (lines.next()) |line| {
         const hunk = c.git_blame_get_hunk_byline(blame_obj, line_num);
@@ -170,13 +183,14 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
         try writer.writeAll("<tr>");
 
         if (hunk != null) {
-            const is_same_commit = std.mem.eql(u8, &hunk.*.final_commit_id.id, &prev_oid.id);
+            // Check if we're in the same hunk (faster than comparing OIDs)
+            const is_same_hunk = (prev_hunk == hunk);
 
-            if (!is_same_commit) {
-                // Commit hash
+            if (!is_same_hunk) {
+                // Commit hash - convert OID once per hunk
                 try writer.writeAll("<td class='blame-commit'>");
-                const oid_str = try git.oidToString(@ptrCast(&hunk.*.final_commit_id));
-                try shared.writeCommitLink(ctx, writer, &oid_str, oid_str[0..7]);
+                _ = c.git_oid_tostr(&oid_buf, oid_buf.len, &hunk.*.final_commit_id);
+                try shared.writeCommitLink(ctx, writer, &oid_buf, oid_buf[0..7]);
                 try writer.writeAll("</td>");
 
                 // Author
@@ -185,7 +199,6 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
                 if (sig != null) {
                     const author_name = std.mem.span(sig.*.name);
                     try html.htmlEscape(writer, parsing.truncateString(author_name, 20));
-                    prev_author = author_name;
                 }
                 try writer.writeAll("</td>");
 
@@ -196,9 +209,9 @@ pub fn blame(ctx: *gitweb.Context, writer: anytype) !void {
                 }
                 try writer.writeAll("</td>");
 
-                prev_oid = hunk.*.final_commit_id;
+                prev_hunk = hunk;
             } else {
-                // Same commit, show continuation
+                // Same hunk, show continuation
                 try writer.writeAll("<td class='blame-commit' style='border-top: none;'></td>");
                 try writer.writeAll("<td class='blame-author' style='border-top: none;'></td>");
                 try writer.writeAll("<td class='blame-date' style='border-top: none;'></td>");
