@@ -142,7 +142,7 @@ fn collectStatistics(ctx: *gitweb.Context, repo: *git.Repository) !StatsData {
             var ref2 = repo.getReference(full_ref) catch {
                 // Fall back to HEAD if branch not found
                 try walk.pushHead();
-                walk.setSorting(c.GIT_SORT_TIME);
+                walk.setSorting(c.GIT_SORT_NONE);
                 return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
             };
             defer ref2.free();
@@ -150,11 +150,11 @@ fn collectStatistics(ctx: *gitweb.Context, repo: *git.Repository) !StatsData {
             const oid = ref2.target() orelse {
                 // Fall back to HEAD if target not found
                 try walk.pushHead();
-                walk.setSorting(c.GIT_SORT_TIME);
+                walk.setSorting(c.GIT_SORT_NONE);
                 return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
             };
             _ = c.git_revwalk_push(walk.walk, oid);
-            walk.setSorting(c.GIT_SORT_TIME);
+            walk.setSorting(c.GIT_SORT_NONE);
             return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
         };
         defer ref.free();
@@ -162,13 +162,13 @@ fn collectStatistics(ctx: *gitweb.Context, repo: *git.Repository) !StatsData {
         const oid = ref.target() orelse {
             // Fall back to HEAD if target not found
             try walk.pushHead();
-            walk.setSorting(c.GIT_SORT_TIME);
+            walk.setSorting(c.GIT_SORT_NONE);
             return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
         };
         _ = c.git_revwalk_push(walk.walk, oid);
     }
 
-    walk.setSorting(c.GIT_SORT_TIME);
+    walk.setSorting(c.GIT_SORT_NONE);
     return collectStatisticsFromWalk(ctx, repo, &walk, &stats_data);
 }
 

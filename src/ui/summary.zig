@@ -139,7 +139,7 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
             };
         };
     }
-    walk.setSorting(@import("../git.zig").c.GIT_SORT_TIME);
+    walk.setSorting(@import("../git.zig").c.GIT_SORT_NONE); // Natural order is sufficient
 
     var count: u32 = 0;
     while (walk.next()) |oid| {

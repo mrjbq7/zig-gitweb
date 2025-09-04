@@ -110,31 +110,31 @@ fn searchCommits(ctx: *gitweb.Context, repo: *git.Repository, search_term: []con
 
             var ref2 = repo.getReference(full_ref) catch {
                 try walk.pushHead();
-                walk.setSorting(c.GIT_SORT_TIME);
+                walk.setSorting(c.GIT_SORT_NONE);
                 return searchCommitsFromWalk(ctx, repo, &walk, search_term, writer);
             };
             defer ref2.free();
 
             const oid = ref2.target() orelse {
                 try walk.pushHead();
-                walk.setSorting(c.GIT_SORT_TIME);
+                walk.setSorting(c.GIT_SORT_NONE);
                 return searchCommitsFromWalk(ctx, repo, &walk, search_term, writer);
             };
             _ = c.git_revwalk_push(walk.walk, oid);
-            walk.setSorting(c.GIT_SORT_TIME);
+            walk.setSorting(c.GIT_SORT_NONE);
             return searchCommitsFromWalk(ctx, repo, &walk, search_term, writer);
         };
         defer ref.free();
 
         const oid = ref.target() orelse {
             try walk.pushHead();
-            walk.setSorting(c.GIT_SORT_TIME);
+            walk.setSorting(c.GIT_SORT_NONE);
             return searchCommitsFromWalk(ctx, repo, &walk, search_term, writer);
         };
         _ = c.git_revwalk_push(walk.walk, oid);
     }
 
-    walk.setSorting(c.GIT_SORT_TIME);
+    walk.setSorting(c.GIT_SORT_NONE);
     return searchCommitsFromWalk(ctx, repo, &walk, search_term, writer);
 }
 
@@ -199,31 +199,31 @@ fn searchAuthor(ctx: *gitweb.Context, repo: *git.Repository, search_term: []cons
 
             var ref2 = repo.getReference(full_ref) catch {
                 try walk.pushHead();
-                walk.setSorting(c.GIT_SORT_TIME);
+                walk.setSorting(c.GIT_SORT_NONE);
                 return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
             };
             defer ref2.free();
 
             const oid = ref2.target() orelse {
                 try walk.pushHead();
-                walk.setSorting(c.GIT_SORT_TIME);
+                walk.setSorting(c.GIT_SORT_NONE);
                 return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
             };
             _ = c.git_revwalk_push(walk.walk, oid);
-            walk.setSorting(c.GIT_SORT_TIME);
+            walk.setSorting(c.GIT_SORT_NONE);
             return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
         };
         defer ref.free();
 
         const oid = ref.target() orelse {
             try walk.pushHead();
-            walk.setSorting(c.GIT_SORT_TIME);
+            walk.setSorting(c.GIT_SORT_NONE);
             return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
         };
         _ = c.git_revwalk_push(walk.walk, oid);
     }
 
-    walk.setSorting(c.GIT_SORT_TIME);
+    walk.setSorting(c.GIT_SORT_NONE);
     return searchAuthorFromWalk(ctx, repo, &walk, search_term, writer);
 }
 
@@ -448,20 +448,20 @@ fn searchPickaxe(ctx: *gitweb.Context, repo: *git.Repository, search_term: []con
     } else {
         var ref = shared.resolveReference(ctx, repo, ref_name) catch {
             try walk.pushHead();
-            walk.setSorting(c.GIT_SORT_TIME);
+            walk.setSorting(c.GIT_SORT_NONE);
             return searchPickaxeFromWalk(ctx, repo, &walk, search_term, writer);
         };
         defer @constCast(&ref).free();
 
         const oid = @constCast(&ref).target() orelse {
             try walk.pushHead();
-            walk.setSorting(c.GIT_SORT_TIME);
+            walk.setSorting(c.GIT_SORT_NONE);
             return searchPickaxeFromWalk(ctx, repo, &walk, search_term, writer);
         };
         _ = c.git_revwalk_push(walk.walk, oid);
     }
 
-    walk.setSorting(c.GIT_SORT_TIME);
+    walk.setSorting(c.GIT_SORT_NONE);
     return searchPickaxeFromWalk(ctx, repo, &walk, search_term, writer);
 }
 

@@ -95,8 +95,8 @@ pub fn atom(ctx: *gitweb.Context, writer: anytype) !void {
         try walk.pushHead();
     }
 
-    // Sort by time
-    walk.setSorting(c.GIT_SORT_TIME);
+    // Use natural order (faster than explicit time sorting)
+    walk.setSorting(c.GIT_SORT_NONE);
 
     // Limit to path if specified
     if (path) |p| {
