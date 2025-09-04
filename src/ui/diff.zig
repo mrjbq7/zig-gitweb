@@ -75,8 +75,10 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
         if (commit.parentCount() > 0) {
             var parent = try commit.parent(0);
             defer parent.free();
-            const parent_oid_str = try git.oidToString(parent.id());
-            ctx.query.set("id2", &parent_oid_str) catch {};
+            const parent_oid_array = try git.oidToString(parent.id());
+            // Allocate a copy of the OID string for the query
+            const parent_oid_str = try ctx.allocator.dupe(u8, &parent_oid_array);
+            ctx.query.set("id2", parent_oid_str) catch {};
             break :blk ctx.query.get("id2") orelse {
                 try writer.writeAll("<p>No parent commit to diff against.</p>\n");
                 try writer.writeAll("</div>\n");
