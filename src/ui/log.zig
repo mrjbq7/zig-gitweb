@@ -36,7 +36,7 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     try writer.writeAll("<div class='log-controls'>\n");
     if (ctx.repo) |r| {
         if (expanded) {
-            try writer.print("<a href='?r={s}&cmd=log", .{r.name});
+            try writer.print("<a class='btn' href='?r={s}&cmd=log", .{r.name});
             if (ctx.query.get("id")) |id| {
                 try writer.print("&id={s}", .{id});
             } else if (ctx.query.get("h")) |h| {
@@ -48,7 +48,7 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
             }
             try writer.writeAll("'>Collapse</a>\n");
         } else {
-            try writer.print("<a href='?r={s}&cmd=log&showmsg=1", .{r.name});
+            try writer.print("<a class='btn' href='?r={s}&cmd=log&showmsg=1", .{r.name});
             if (ctx.query.get("id")) |id| {
                 try writer.print("&id={s}", .{id});
             } else if (ctx.query.get("h")) |h| {

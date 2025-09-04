@@ -205,7 +205,7 @@ pub const TagItemInfo = struct {
 pub fn writeTagItem(ctx: *gitweb.Context, writer: anytype, info: TagItemInfo, css_prefix: []const u8) !void {
     try writer.print("<div class='{s}-item'>\n", .{css_prefix});
 
-    // First line: tag name and download links
+    // First line: tag name and message
     try writer.print("<div class='{s}-top'>\n", .{css_prefix});
 
     // Name
@@ -217,24 +217,13 @@ pub fn writeTagItem(ctx: *gitweb.Context, writer: anytype, info: TagItemInfo, cs
     }
     try writer.writeAll("</div>\n");
 
-    // Download links
-    try writer.print("<div class='{s}-download'>\n", .{css_prefix});
-    if (ctx.repo) |r| {
-        try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{ r.name, info.name });
-        try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{ r.name, info.name });
-    } else {
-        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{info.name});
-        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{info.name});
-    }
-    try writer.writeAll("</div>\n");
-
-    try writer.writeAll("</div>\n"); // top
-
     // Message
     try writer.print("<div class='{s}-message'>\n", .{css_prefix});
     const truncated = parsing.truncateString(info.message, 60);
     try html.htmlEscape(writer, truncated);
     try writer.writeAll("</div>\n");
+
+    try writer.writeAll("</div>\n"); // top
 
     // Metadata
     try writer.print("<div class='{s}-meta'>\n", .{css_prefix});
@@ -252,6 +241,17 @@ pub fn writeTagItem(ctx: *gitweb.Context, writer: anytype, info: TagItemInfo, cs
     // Age
     try writer.print("<span class='{s}-age' data-timestamp='{d}'>", .{ css_prefix, info.timestamp });
     try formatAge(writer, info.timestamp);
+    try writer.writeAll("</span>");
+
+    // Download links
+    try writer.print("<span class='{s}-download'>", .{css_prefix});
+    if (ctx.repo) |r| {
+        try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{ r.name, info.name });
+        try writer.print("<a href='?r={s}&cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{ r.name, info.name });
+    } else {
+        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=tar.gz'>tar.gz</a> | ", .{info.name});
+        try writer.print("<a href='?cmd=snapshot&h={s}&fmt=zip'>zip</a>", .{info.name});
+    }
     try writer.writeAll("</span>");
 
     try writer.writeAll("</div>\n"); // meta

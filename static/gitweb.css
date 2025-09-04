@@ -16,6 +16,42 @@ body {
 a { color: #0969da; text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* Reusable button styles */
+.btn, 
+a.btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #f6f8fa;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+    color: #24292f;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.2s ease-out;
+    cursor: pointer;
+}
+
+.btn:hover,
+a.btn:hover {
+    background: #e1e4e8;
+    border-color: #8b949e;
+    text-decoration: none;
+    transition: none;
+}
+
+.btn-active,
+span.btn-active,
+.btn-active:hover,
+span.btn-active:hover {
+    background: #0969da;
+    border-color: #0860ca;
+    color: #ffffff;
+    cursor: default;
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+
 #gitweb {
     margin: 0;
     width: 100%;
@@ -300,9 +336,17 @@ div.diff {
     margin: 16px 0;
 }
 
+div.diff-options {
+    margin: 16px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 pre.diff {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     font-size: 0.875rem;
+    line-height: 1.45;
     background: #f6f8fa;
     border: 1px solid #d1d5da;
     border-radius: 6px;
@@ -382,6 +426,19 @@ h2.path {
 }
 
 /* Blob view */
+.blob-actions {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.blob-info {
+    margin: 16px 0;
+    font-size: 0.95rem;
+    color: #57606a;
+}
+
 .blob-commit-info {
     background: #fff8dc;
     border: 1px solid #ffe4b5;
@@ -493,7 +550,8 @@ table.blame td.code {
 
 .log-message {
     font-size: 1.05rem;
-    line-height: 1.4;
+    font-weight: 600;
+    line-height: 1.6;
     color: #24292e;
     margin-bottom: 4px;
     word-wrap: break-word;
@@ -503,7 +561,7 @@ table.blame td.code {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 1rem;
+    font-size: 0.925rem;
     color: #57606a;
 }
 
@@ -557,12 +615,8 @@ div.log h2 {
 }
 
 div.log-controls {
-    margin-bottom: 8px;
-    padding: 4px 0;
-}
-
-div.log-controls a {
-    font-weight: 500;
+    margin-bottom: 16px;
+    padding: 8px 0;
 }
 
 pre.commit-msg {
@@ -642,7 +696,9 @@ td.log-stats .deletions {
 
 .refs-name {
     font-size: 1.05rem;
-    font-weight: 500;
+    font-weight: 600;
+    line-height: 1.6;
+    margin-bottom: 4px;
 }
 
 .refs-name a {
@@ -677,7 +733,7 @@ td.log-stats .deletions {
 }
 
 .refs-message {
-    font-size: 1.05rem;
+    font-size: 0.925rem;
     color: #586069;
     margin-bottom: 4px;
     overflow: hidden;
@@ -686,13 +742,13 @@ td.log-stats .deletions {
 }
 
 .refs-download {
-    font-size: 0.875rem;
+    font-size: 0.925rem;
 }
 
 .refs-meta {
     display: flex;
     gap: 12px;
-    font-size: 1rem;
+    font-size: 0.925rem;
     color: #57606a;
 }
 
@@ -1079,26 +1135,32 @@ table.search-results code {
 }
 
 .ssdiff-file-header {
-    background: #f6f8fa;
-    padding: 8px 12px;
+    background: #f1f8ff;
+    padding: 10px 16px;
+    font-size: 0.875rem;
     font-weight: 600;
     border: 1px solid #d1d5da;
     border-bottom: none;
+    border-radius: 6px 6px 0 0;
     margin-top: 20px;
 }
 
 table.ssdiff {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     border: 1px solid #d1d5da;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
     margin-bottom: 20px;
+    overflow: hidden;
 }
 
 table.ssdiff td {
     padding: 2px 8px;
-    font-family: 'SFMono-Regular', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     font-size: 0.875rem;
-    line-height: 1.4;
+    line-height: 1.45;
     vertical-align: top;
     white-space: pre;
     overflow-x: auto;
@@ -1155,6 +1217,32 @@ table.ssdiff tr:hover {
     }
     
     a { color: #58a6ff; }
+    
+    /* Button styles for dark mode */
+    .btn,
+    a.btn {
+        background: #21262d;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+    
+    .btn:hover,
+    a.btn:hover {
+        background: #30363d;
+        border-color: #8b949e;
+        text-decoration: none;
+        transition: none;
+    }
+    
+    .btn-active,
+    span.btn-active,
+    .btn-active:hover,
+    span.btn-active:hover {
+        background: #1f6feb;
+        border-color: #1158c7;
+        color: #ffffff;
+        text-decoration: none;
+    }
     
     #header {
         background: #161b22;
@@ -1232,6 +1320,10 @@ table.ssdiff tr:hover {
         color: #8b949e;
     }
     
+    .blob-info {
+        color: #8b949e;
+    }
+
     .blob-commit-info {
         background: #2d2a1f;
         border-color: #484532;

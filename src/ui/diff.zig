@@ -168,24 +168,23 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     const diff_type = ctx.query.get("dt") orelse "unified";
 
     try writer.writeAll("<div class='diff-options'>\n");
-    try writer.writeAll("View: ");
 
     if (std.mem.eql(u8, diff_type, "unified")) {
-        try writer.writeAll("<strong>Unified</strong> | ");
+        try writer.writeAll("<span class='btn btn-active'>Unified</span>");
     } else {
-        try writer.print("<a href='?r={s}&cmd=diff&id={s}&id2={s}&dt=unified'>Unified</a> | ", .{ repo.name, oid1_str, oid2_str });
+        try writer.print("<a class='btn' href='?r={s}&cmd=diff&id={s}&id2={s}&dt=unified'>Unified</a>", .{ repo.name, oid1_str, oid2_str });
     }
 
     if (std.mem.eql(u8, diff_type, "ssdiff")) {
-        try writer.writeAll("<strong>Side-by-side</strong> | ");
+        try writer.writeAll("<span class='btn btn-active'>Side-by-side</span>");
     } else {
-        try writer.print("<a href='?r={s}&cmd=diff&id={s}&id2={s}&dt=ssdiff'>Side-by-side</a> | ", .{ repo.name, oid1_str, oid2_str });
+        try writer.print("<a class='btn' href='?r={s}&cmd=diff&id={s}&id2={s}&dt=ssdiff'>Side-by-side</a>", .{ repo.name, oid1_str, oid2_str });
     }
 
     if (std.mem.eql(u8, diff_type, "stat")) {
-        try writer.writeAll("<strong>Stat only</strong>");
+        try writer.writeAll("<span class='btn btn-active'>Stat only</span>");
     } else {
-        try writer.print("<a href='?r={s}&cmd=diff&id={s}&id2={s}&dt=stat'>Stat only</a>", .{ repo.name, oid1_str, oid2_str });
+        try writer.print("<a class='btn' href='?r={s}&cmd=diff&id={s}&id2={s}&dt=stat'>Stat only</a>", .{ repo.name, oid1_str, oid2_str });
     }
 
     try writer.writeAll("</div>\n");
@@ -319,7 +318,35 @@ fn displaySideBySideDiff(diff_obj: *git.Diff, writer: anytype) !void {
 
         // File header
         try writer.writeAll("<div class='ssdiff-file-header'>");
-        try html.htmlEscape(writer, std.mem.span(delta.*.new_file.path));
+
+        // Show file path changes
+        const old_path = std.mem.span(delta.*.old_file.path);
+        const new_path = std.mem.span(delta.*.new_file.path);
+
+        if (std.mem.eql(u8, old_path, new_path)) {
+            try writer.writeAll("<strong>");
+            try html.htmlEscape(writer, new_path);
+            try writer.writeAll("</strong>");
+        } else {
+            try writer.writeAll("<strong>");
+            try html.htmlEscape(writer, old_path);
+            try writer.writeAll(" → ");
+            try html.htmlEscape(writer, new_path);
+            try writer.writeAll("</strong>");
+        }
+
+        // Show file status
+        const status_str = switch (delta.*.status) {
+            c.GIT_DELTA_ADDED => " (new file)",
+            c.GIT_DELTA_DELETED => " (deleted)",
+            c.GIT_DELTA_MODIFIED => " (modified)",
+            c.GIT_DELTA_RENAMED => " (renamed)",
+            c.GIT_DELTA_COPIED => " (copied)",
+            c.GIT_DELTA_TYPECHANGE => " (type changed)",
+            else => "",
+        };
+        try writer.writeAll(status_str);
+
         try writer.writeAll("</div>\n");
 
         try writer.writeAll("<table class='ssdiff'>\n");

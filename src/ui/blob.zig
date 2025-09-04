@@ -184,7 +184,7 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
     try writer.writeAll("<div class='blob-actions'>");
 
     // View Raw link
-    try writer.writeAll("<a href='?");
+    try writer.writeAll("<a class='btn' href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
@@ -192,10 +192,8 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
     try html.urlEncodePath(writer, path);
     try writer.writeAll("'>View Raw</a>");
 
-    try writer.writeAll(" | ");
-
     // History link
-    try writer.writeAll("<a href='?");
+    try writer.writeAll("<a class='btn' href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
@@ -210,10 +208,8 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
     try html.urlEncodePath(writer, path);
     try writer.writeAll("'>History</a>");
 
-    try writer.writeAll(" | ");
-
     // Blame link
-    try writer.writeAll("<a href='?");
+    try writer.writeAll("<a class='btn' href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
@@ -274,7 +270,7 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.
     try writer.writeAll("<div class='blob-actions'>");
 
     // Download link
-    try writer.writeAll("<a href='?");
+    try writer.writeAll("<a class='btn' href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
@@ -285,7 +281,7 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.
     try writer.writeAll(")</a>");
 
     // History link
-    try writer.writeAll(" | <a href='?");
+    try writer.writeAll("<a class='btn' href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
@@ -300,7 +296,7 @@ fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.
     try writer.writeAll("'>History</a>");
 
     // Hex dump link
-    try writer.writeAll(" | <a href='?");
+    try writer.writeAll("<a class='btn' href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
@@ -339,7 +335,7 @@ fn displayHexDump(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git
     try writer.writeAll("<div class='blob-actions'>");
 
     // Download link
-    try writer.writeAll("<a href='?");
+    try writer.writeAll("<a class='btn' href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
@@ -350,7 +346,7 @@ fn displayHexDump(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git
     try writer.writeAll(")</a>");
 
     // Normal view link
-    try writer.writeAll(" | <a href='?");
+    try writer.writeAll("<a class='btn' href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
     }
