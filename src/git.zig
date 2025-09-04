@@ -24,12 +24,15 @@ pub fn deinit() void {
     _ = c.git_libgit2_shutdown();
 }
 
-fn getLastError() GitError {
-    const err = c.git_error_last();
-    if (err != null) {
-        std.log.err("Git error: {s}", .{err.*.message});
-    }
-    return GitError.Unknown;
+fn getGitError(code: c_int) GitError {
+    // Map libgit2 error codes to our error types
+    return switch (code) {
+        c.GIT_ENOTFOUND => GitError.NotFound,
+        c.GIT_EINVALIDSPEC => GitError.InvalidReference,
+        c.GIT_EAMBIGUOUS => GitError.InvalidReference,
+        c.GIT_EEXISTS => GitError.InvalidObject,
+        else => GitError.Unknown,
+    };
 }
 
 pub const Repository = struct {
@@ -40,8 +43,9 @@ pub const Repository = struct {
         const c_path = try std.heap.c_allocator.dupeZ(u8, path);
         defer std.heap.c_allocator.free(c_path);
 
-        if (c.git_repository_open(&repo, c_path) != 0) {
-            return getLastError();
+        const result = c.git_repository_open(&repo, c_path);
+        if (result != 0) {
+            return getGitError(result);
         }
 
         return Repository{ .repo = repo.? };
@@ -52,8 +56,9 @@ pub const Repository = struct {
         const c_path = try std.heap.c_allocator.dupeZ(u8, path);
         defer std.heap.c_allocator.free(c_path);
 
-        if (c.git_repository_open_bare(&repo, c_path) != 0) {
-            return getLastError();
+        const result = c.git_repository_open_bare(&repo, c_path);
+        if (result != 0) {
+            return getGitError(result);
         }
 
         return Repository{ .repo = repo.? };
@@ -65,8 +70,9 @@ pub const Repository = struct {
 
     pub fn getHead(self: *Repository) !Reference {
         var ref: ?*c.git_reference = null;
-        if (c.git_repository_head(&ref, self.repo) != 0) {
-            return getLastError();
+        const result = c.git_repository_head(&ref, self.repo);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Reference{ .ref = ref.? };
     }
@@ -76,8 +82,9 @@ pub const Repository = struct {
         const c_name = try std.heap.c_allocator.dupeZ(u8, name);
         defer std.heap.c_allocator.free(c_name);
 
-        if (c.git_reference_lookup(&ref, self.repo, c_name) != 0) {
-            return getLastError();
+        const result = c.git_reference_lookup(&ref, self.repo, c_name);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Reference{ .ref = ref.? };
     }
@@ -97,8 +104,9 @@ pub const Repository = struct {
             oid
         else
             @ptrCast(oid);
-        if (c.git_commit_lookup(&commit, self.repo, oid_ptr) != 0) {
-            return getLastError();
+        const result = c.git_commit_lookup(&commit, self.repo, oid_ptr);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Commit{ .commit = commit.? };
     }
@@ -118,8 +126,9 @@ pub const Repository = struct {
             oid
         else
             @ptrCast(oid);
-        if (c.git_tree_lookup(&tree, self.repo, oid_ptr) != 0) {
-            return getLastError();
+        const result = c.git_tree_lookup(&tree, self.repo, oid_ptr);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Tree{ .tree = tree.? };
     }
@@ -139,24 +148,27 @@ pub const Repository = struct {
             oid
         else
             @ptrCast(oid);
-        if (c.git_blob_lookup(&blob, self.repo, oid_ptr) != 0) {
-            return getLastError();
+        const result = c.git_blob_lookup(&blob, self.repo, oid_ptr);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Blob{ .blob = blob.? };
     }
 
     pub fn lookupObject(self: *Repository, oid: *c.git_oid, obj_type: c.git_object_t) !Object {
         var obj: ?*c.git_object = null;
-        if (c.git_object_lookup(&obj, self.repo, oid, obj_type) != 0) {
-            return getLastError();
+        const result = c.git_object_lookup(&obj, self.repo, oid, obj_type);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Object{ .obj = obj.? };
     }
 
     pub fn revwalk(self: *Repository) !RevWalk {
         var walk: ?*c.git_revwalk = null;
-        if (c.git_revwalk_new(&walk, self.repo) != 0) {
-            return getLastError();
+        const result = c.git_revwalk_new(&walk, self.repo);
+        if (result != 0) {
+            return getGitError(result);
         }
         return RevWalk{ .walk = walk.? };
     }
@@ -166,8 +178,9 @@ pub const Repository = struct {
         errdefer branches.deinit(allocator);
 
         var iter: ?*c.git_branch_iterator = null;
-        if (c.git_branch_iterator_new(&iter, self.repo, c.GIT_BRANCH_ALL) != 0) {
-            return getLastError();
+        const result = c.git_branch_iterator_new(&iter, self.repo, c.GIT_BRANCH_ALL);
+        if (result != 0) {
+            return getGitError(result);
         }
         defer c.git_branch_iterator_free(iter);
 
@@ -192,8 +205,9 @@ pub const Repository = struct {
         errdefer tags.deinit(allocator);
 
         var tag_names: c.git_strarray = undefined;
-        if (c.git_tag_list(&tag_names, self.repo) != 0) {
-            return getLastError();
+        const result = c.git_tag_list(&tag_names, self.repo);
+        if (result != 0) {
+            return getGitError(result);
         }
         defer c.git_strarray_dispose(&tag_names);
 
@@ -240,8 +254,9 @@ pub const Reference = struct {
 
     pub fn peel(self: *Reference, obj_type: c.git_object_t) !Object {
         var obj: ?*c.git_object = null;
-        if (c.git_reference_peel(&obj, self.ref, obj_type) != 0) {
-            return getLastError();
+        const result = c.git_reference_peel(&obj, self.ref, obj_type);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Object{ .obj = obj.? };
     }
@@ -286,16 +301,18 @@ pub const Commit = struct {
 
     pub fn parent(self: *Commit, n: u32) !Commit {
         var parent_commit: ?*c.git_commit = null;
-        if (c.git_commit_parent(&parent_commit, self.commit, n) != 0) {
-            return getLastError();
+        const result = c.git_commit_parent(&parent_commit, self.commit, n);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Commit{ .commit = parent_commit.? };
     }
 
     pub fn tree(self: *Commit) !Tree {
         var tree_obj: ?*c.git_tree = null;
-        if (c.git_commit_tree(&tree_obj, self.commit) != 0) {
-            return getLastError();
+        const result = c.git_commit_tree(&tree_obj, self.commit);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Tree{ .tree = tree_obj.? };
     }
@@ -327,8 +344,9 @@ pub const Tree = struct {
     }
 
     pub fn walk(self: *Tree, callback: c.git_treewalk_cb, payload: ?*anyopaque) !void {
-        if (c.git_tree_walk(self.tree, c.GIT_TREEWALK_PRE, callback, payload) != 0) {
-            return getLastError();
+        const result = c.git_tree_walk(self.tree, c.GIT_TREEWALK_PRE, callback, payload);
+        if (result != 0) {
+            return getGitError(result);
         }
     }
 };
@@ -383,8 +401,9 @@ pub const RevWalk = struct {
     }
 
     pub fn pushHead(self: *RevWalk) !void {
-        if (c.git_revwalk_push_head(self.walk) != 0) {
-            return getLastError();
+        const result = c.git_revwalk_push_head(self.walk);
+        if (result != 0) {
+            return getGitError(result);
         }
     }
 
@@ -392,14 +411,16 @@ pub const RevWalk = struct {
         const c_name = try std.heap.c_allocator.dupeZ(u8, refname);
         defer std.heap.c_allocator.free(c_name);
 
-        if (c.git_revwalk_push_ref(self.walk, c_name) != 0) {
-            return getLastError();
+        const result = c.git_revwalk_push_ref(self.walk, c_name);
+        if (result != 0) {
+            return getGitError(result);
         }
     }
 
     pub fn hide(self: *RevWalk, oid: *const c.git_oid) !void {
-        if (c.git_revwalk_hide(self.walk, oid) != 0) {
-            return getLastError();
+        const result = c.git_revwalk_hide(self.walk, oid);
+        if (result != 0) {
+            return getGitError(result);
         }
     }
 
@@ -425,16 +446,18 @@ pub const Diff = struct {
 
     pub fn treeToTree(repo: *c.git_repository, old_tree: ?*c.git_tree, new_tree: ?*c.git_tree, opts: ?*c.git_diff_options) !Diff {
         var diff: ?*c.git_diff = null;
-        if (c.git_diff_tree_to_tree(&diff, repo, old_tree, new_tree, opts) != 0) {
-            return getLastError();
+        const result = c.git_diff_tree_to_tree(&diff, repo, old_tree, new_tree, opts);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Diff{ .diff = diff.? };
     }
 
     pub fn treeToWorkdir(repo: *c.git_repository, tree: ?*c.git_tree, opts: ?*c.git_diff_options) !Diff {
         var diff: ?*c.git_diff = null;
-        if (c.git_diff_tree_to_workdir(&diff, repo, tree, opts) != 0) {
-            return getLastError();
+        const result = c.git_diff_tree_to_workdir(&diff, repo, tree, opts);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Diff{ .diff = diff.? };
     }
@@ -448,15 +471,17 @@ pub const Diff = struct {
     }
 
     pub fn print(self: *Diff, format: c.git_diff_format_t, callback: c.git_diff_line_cb, payload: ?*anyopaque) !void {
-        if (c.git_diff_print(self.diff, format, callback, payload) != 0) {
-            return getLastError();
+        const result = c.git_diff_print(self.diff, format, callback, payload);
+        if (result != 0) {
+            return getGitError(result);
         }
     }
 
     pub fn getStats(self: *Diff) !DiffStats {
         var stats: ?*c.git_diff_stats = null;
-        if (c.git_diff_get_stats(&stats, self.diff) != 0) {
-            return getLastError();
+        const result = c.git_diff_get_stats(&stats, self.diff);
+        if (result != 0) {
+            return getGitError(result);
         }
         return DiffStats{ .stats = stats.? };
     }
@@ -494,8 +519,9 @@ pub const Blame = struct {
         const c_path = try std.heap.c_allocator.dupeZ(u8, path);
         defer std.heap.c_allocator.free(c_path);
 
-        if (c.git_blame_file(&blame, repo, c_path, opts) != 0) {
-            return getLastError();
+        const result = c.git_blame_file(&blame, repo, c_path, opts);
+        if (result != 0) {
+            return getGitError(result);
         }
         return Blame{ .blame = blame.? };
     }
