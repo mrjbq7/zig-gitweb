@@ -38,19 +38,27 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
         }
 
         var iter = dir.iterate();
+        
+        // Use stack buffers for path operations (outside loop for efficiency)
+        var path_buf: [1024]u8 = undefined;
+        var head_buf: [1024]u8 = undefined;
+        var desc_buf: [1024]u8 = undefined;
 
         while (try iter.next()) |entry| {
             // Check if this is a git repository (either bare or .git directory)
+            
             const is_git_repo = blk: {
                 if (std.mem.endsWith(u8, entry.name, ".git")) {
                     break :blk true;
                 }
                 // Check if it's a bare repository by looking for HEAD file
-                const repo_path = try std.fmt.allocPrint(ctx.allocator, "{s}/{s}", .{ scan_path, entry.name });
-                defer ctx.allocator.free(repo_path);
+                const repo_path = std.fmt.bufPrint(&path_buf, "{s}/{s}", .{ scan_path, entry.name }) catch {
+                    break :blk false;
+                };
 
-                const head_path = try std.fmt.allocPrint(ctx.allocator, "{s}/HEAD", .{repo_path});
-                defer ctx.allocator.free(head_path);
+                const head_path = std.fmt.bufPrint(&head_buf, "{s}/HEAD", .{repo_path}) catch {
+                    break :blk false;
+                };
 
                 std.fs.accessAbsolute(head_path, .{}) catch {
                     break :blk false;
@@ -65,12 +73,10 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
                     repo_name = repo_name[0 .. repo_name.len - 4];
                 }
 
-                // Try to get repository description
-                const repo_path = try std.fmt.allocPrint(ctx.allocator, "{s}/{s}", .{ scan_path, entry.name });
-                defer ctx.allocator.free(repo_path);
+                // Try to get repository description (reuse path_buf)
+                const repo_path = std.fmt.bufPrint(&path_buf, "{s}/{s}", .{ scan_path, entry.name }) catch continue;
 
-                const desc_path = try std.fmt.allocPrint(ctx.allocator, "{s}/description", .{repo_path});
-                defer ctx.allocator.free(desc_path);
+                const desc_path = std.fmt.bufPrint(&desc_buf, "{s}/description", .{repo_path}) catch continue;
 
                 const description = blk: {
                     const file = std.fs.openFileAbsolute(desc_path, .{}) catch {

@@ -6,7 +6,7 @@ const git = @import("../git.zig");
 
 const c = git.c;
 
-fn resolveRefToOid(repo: *git.Repository, ref_str: []const u8, allocator: std.mem.Allocator) !c.git_oid {
+fn resolveRefToOid(repo: *git.Repository, ref_str: []const u8) !c.git_oid {
     // First try to parse as OID
     if (git.stringToOid(ref_str)) |oid| {
         return oid;
@@ -20,14 +20,13 @@ fn resolveRefToOid(repo: *git.Repository, ref_str: []const u8, allocator: std.me
         } else {
             // Try as branch or tag reference
             var ref = repo.getReference(ref_str) catch {
-                // Try with refs/heads/ prefix
-                const full_ref = try std.fmt.allocPrintSentinel(allocator, "refs/heads/{s}", .{ref_str}, 0);
-                defer allocator.free(full_ref);
+                // Try with refs/heads/ prefix using stack buffer
+                var ref_buf: [256]u8 = undefined;
+                const full_ref = try shared.formatBranchRef(&ref_buf, ref_str);
 
                 var ref2 = repo.getReference(full_ref) catch {
                     // Try with refs/tags/ prefix
-                    const tag_ref = try std.fmt.allocPrintSentinel(allocator, "refs/tags/{s}", .{ref_str}, 0);
-                    defer allocator.free(tag_ref);
+                    const tag_ref = try shared.formatTagRef(&ref_buf, ref_str);
 
                     var ref3 = repo.getReference(tag_ref) catch return error.InvalidRef;
                     defer ref3.free();
@@ -60,7 +59,7 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
 
     // Get the first commit - either from ID or from branch/HEAD
     const id1 = ctx.query.get("id") orelse ctx.query.get("h") orelse "HEAD";
-    const commit1_oid = resolveRefToOid(&git_repo, id1, ctx.allocator) catch {
+    const commit1_oid = resolveRefToOid(&git_repo, id1) catch {
         try writer.print("<p>Unable to resolve reference: {s}</p>\n", .{id1});
         try writer.writeAll("</div>\n");
         return;
@@ -92,7 +91,7 @@ pub fn diff(ctx: *gitweb.Context, writer: anytype) !void {
     const context_lines = std.fmt.parseInt(u32, context_lines_str, 10) catch 3;
 
     // Parse second commit ID
-    const oid2 = resolveRefToOid(&git_repo, id2, ctx.allocator) catch {
+    const oid2 = resolveRefToOid(&git_repo, id2) catch {
         try writer.print("<p>Unable to resolve reference: {s}</p>\n", .{id2});
         try writer.writeAll("</div>\n");
         return;
@@ -673,9 +672,9 @@ pub fn rawdiff(ctx: *gitweb.Context, writer: anytype) !void {
         } else {
             // Try to get the reference
             var ref = git_repo.getReference(ref_name) catch {
-                // Try with refs/heads/ prefix
-                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
-                defer ctx.allocator.free(full_ref);
+                // Try with refs/heads/ prefix using stack buffer
+                var ref_buf: [256]u8 = undefined;
+                const full_ref = try shared.formatBranchRef(&ref_buf, ref_name);
 
                 var ref2 = git_repo.getReference(full_ref) catch {
                     return error.BranchNotFound;

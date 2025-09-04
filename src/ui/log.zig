@@ -143,12 +143,11 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
             if (std.mem.eql(u8, ref_name, "HEAD")) {
                 try walk.pushHead();
             } else {
-                // Try as branch/tag/ref
-                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
-                defer ctx.allocator.free(full_ref);
+                // Try as branch/tag/ref using stack buffer
+                var ref_buf: [256]u8 = undefined;
+                const full_ref = try shared.formatBranchRef(&ref_buf, ref_name);
                 walk.pushRef(full_ref) catch {
-                    const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, 0);
-                    defer ctx.allocator.free(tag_ref);
+                    const tag_ref = try shared.formatTagRef(&ref_buf, ref_name);
                     walk.pushRef(tag_ref) catch {
                         walk.pushRef(ref_name) catch {
                             try walk.pushHead();
@@ -162,13 +161,12 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
         if (std.mem.eql(u8, ref_name, "HEAD")) {
             try walk.pushHead();
         } else {
-            // Try as full reference first (refs/heads/branch)
-            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
-            defer ctx.allocator.free(full_ref);
+            // Try as full reference first using stack buffer
+            var ref_buf: [256]u8 = undefined;
+            const full_ref = try shared.formatBranchRef(&ref_buf, ref_name);
             walk.pushRef(full_ref) catch {
-                // If that fails, try as tag (refs/tags/tagname)
-                const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, 0);
-                defer ctx.allocator.free(tag_ref);
+                // If that fails, try as tag
+                const tag_ref = try shared.formatTagRef(&ref_buf, ref_name);
                 walk.pushRef(tag_ref) catch {
                     // If that also fails, try the name as-is (might be a full ref already)
                     walk.pushRef(ref_name) catch {

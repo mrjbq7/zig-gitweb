@@ -135,9 +135,9 @@ fn collectStatistics(ctx: *gitweb.Context, repo: *git.Repository) !StatsData {
     } else {
         // Try to get the reference
         var ref = repo.getReference(ref_name) catch {
-            // If direct reference fails, try with refs/heads/ prefix
-            const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
-            defer ctx.allocator.free(full_ref);
+            // If direct reference fails, try with refs/heads/ prefix using stack buffer
+            var ref_buf: [256]u8 = undefined;
+            const full_ref = try shared.formatBranchRef(&ref_buf, ref_name);
 
             var ref2 = repo.getReference(full_ref) catch {
                 // Fall back to HEAD if branch not found

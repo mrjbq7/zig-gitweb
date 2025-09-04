@@ -175,6 +175,9 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         }
     }.lessThan);
 
+    // Stack buffer for path construction
+    var path_buf: [1024]u8 = undefined;
+    
     // Display entries
     for (entries) |entry| {
         const entry_name = std.mem.span(c.git_tree_entry_name(@as(?*const c.git_tree_entry, entry)));
@@ -191,12 +194,9 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
         }
         try writer.writeAll("'>");
         const full_path = if (base_path.len > 0)
-            try std.fmt.allocPrint(ctx.allocator, "{s}/{s}", .{ base_path, entry_name })
+            std.fmt.bufPrint(&path_buf, "{s}/{s}", .{ base_path, entry_name }) catch entry_name
         else
             entry_name;
-        defer {
-            if (base_path.len > 0) ctx.allocator.free(full_path);
-        }
 
         // Mode
         try writer.writeAll("<span class='tree-mode'>");

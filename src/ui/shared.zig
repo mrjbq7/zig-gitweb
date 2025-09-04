@@ -566,3 +566,35 @@ pub fn writeBreadcrumb(ctx: *gitweb.Context, writer: anytype, path: []const u8) 
 
     try writer.writeAll("</h2>\n");
 }
+
+// Thread-local buffer for reference name construction
+threadlocal var ref_buf: [256]u8 = undefined;
+
+pub fn tryResolveRef(repo: *git.Repository, ref_name: []const u8) ?git.Reference {
+    // Try direct reference first
+    if (repo.getReference(ref_name)) |ref| {
+        return ref;
+    } else |_| {}
+    
+    // Try with refs/heads/ prefix  
+    const branch_ref = std.fmt.bufPrint(&ref_buf, "refs/heads/{s}", .{ref_name}) catch return null;
+    if (repo.getReference(branch_ref)) |ref| {
+        return ref;
+    } else |_| {}
+    
+    // Try with refs/tags/ prefix
+    const tag_ref = std.fmt.bufPrint(&ref_buf, "refs/tags/{s}", .{ref_name}) catch return null;
+    if (repo.getReference(tag_ref)) |ref| {
+        return ref;
+    } else |_| {}
+    
+    return null;
+}
+
+pub fn formatBranchRef(buf: []u8, ref_name: []const u8) ![]const u8 {
+    return std.fmt.bufPrint(buf, "refs/heads/{s}", .{ref_name});
+}
+
+pub fn formatTagRef(buf: []u8, ref_name: []const u8) ![]const u8 {
+    return std.fmt.bufPrint(buf, "refs/tags/{s}", .{ref_name});
+}
