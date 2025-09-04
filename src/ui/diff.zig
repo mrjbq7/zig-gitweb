@@ -229,8 +229,8 @@ fn displayUnifiedDiff(diff_obj: *git.Diff, writer: anytype) !void {
         const delta = diff_obj.getDelta(delta_idx) orelse continue;
 
         // File header with clear visual separation
-        try writer.writeAll("<div class='diff-file'>\n");
-        try writer.writeAll("<div class='diff-file-header'>\n");
+        try writer.writeAll("<div class='file-section'>\n");
+        try writer.writeAll("<div class='file-header'>\n");
 
         // Show file path changes
         const old_path = std.mem.span(delta.old_file.path);
@@ -337,7 +337,7 @@ fn displaySideBySideDiff(diff_obj: *git.Diff, writer: anytype) !void {
         const delta = c.git_patch_get_delta(patch);
 
         // File header
-        try writer.writeAll("<div class='ssdiff-file-header'>");
+        try writer.writeAll("<div class='file-header'>");
 
         // Show file path changes
         const old_path = std.mem.span(delta.*.old_file.path);

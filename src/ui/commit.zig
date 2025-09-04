@@ -294,7 +294,7 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
 
     // Show file list with per-file stats
     const num_deltas = diff.numDeltas();
-    try writer.writeAll("<div class='diff-filelist'>\n");
+    try writer.writeAll("<div class='file-list'>\n");
     try writer.writeAll("<ul style='list-style: none; padding: 0; margin: 10px 0;'>\n");
 
     for (0..num_deltas) |i| {
@@ -420,17 +420,17 @@ fn showCommitDiff(ctx: *gitweb.Context, repo: *git.Repository, commit_obj: *git.
     try writer.writeAll("</div>\n");
 
     // Show each file's diff in a separate container
-    try writer.writeAll("<div class='diff-files'>\n");
+    try writer.writeAll("<div class='files'>\n");
 
     for (0..num_deltas) |i| {
         const delta = diff.getDelta(i).?;
         const old_file = delta.*.old_file;
         const new_file = delta.*.new_file;
 
-        try writer.writeAll("<div class='diff-file'>\n");
+        try writer.writeAll("<div class='file-section'>\n");
 
         // File header
-        try writer.writeAll("<div class='diff-file-header'>");
+        try writer.writeAll("<div class='file-header'>");
 
         switch (delta.*.status) {
             c.GIT_DELTA_ADDED => {

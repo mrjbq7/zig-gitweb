@@ -323,15 +323,10 @@ fn searchGrep(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const 
     var tree = try commit.tree();
     defer tree.free();
 
-    try writer.writeAll("<table class='search-results'>\n");
-    try writer.writeAll("<tr><th>File</th><th>Line</th><th>Content</th></tr>\n");
-
     var found_count: usize = 0;
-    const max_results = 200;
+    const max_results = 100;
 
     try searchTreeContents(ctx, repo, &tree, "", search_term, &found_count, max_results, writer);
-
-    try writer.writeAll("</table>\n");
 
     if (found_count == 0) {
         try writer.writeAll("<p>No files found containing the search term.</p>\n");
@@ -341,6 +336,11 @@ fn searchGrep(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const 
         try writer.print("<p>Found {d} matching lines.</p>\n", .{found_count});
     }
 }
+
+const GrepMatch = struct {
+    line_num: usize,
+    content: []const u8,
+};
 
 fn searchTreeContents(ctx: *gitweb.Context, repo: *git.Repository, tree: *git.Tree, path_prefix: []const u8, search_term: []const u8, found_count: *usize, max_results: usize, writer: anytype) !void {
     if (found_count.* >= max_results) return;
@@ -373,21 +373,29 @@ fn searchTreeContents(ctx: *gitweb.Context, repo: *git.Repository, tree: *git.Tr
             // Skip binary files
             if (blob.isBinary()) continue;
 
+            // Collect matching lines for this file
+            var matching_lines = std.ArrayList(GrepMatch).empty;
+            defer matching_lines.deinit(ctx.allocator);
+
             // Search line by line
             var lines = std.mem.splitScalar(u8, content, '\n');
             var line_num: usize = 1;
 
             while (lines.next()) |line| {
-                if (found_count.* >= max_results) break;
-
                 const line_lower = try std.ascii.allocLowerString(ctx.allocator, line);
                 defer ctx.allocator.free(line_lower);
 
                 if (std.mem.indexOf(u8, line_lower, search_lower) != null) {
-                    try renderGrepResult(ctx, full_path, line_num, line, writer);
-                    found_count.* += 1;
+                    try matching_lines.append(ctx.allocator, GrepMatch{ .line_num = line_num, .content = line });
+                    if (found_count.* + matching_lines.items.len >= max_results) break;
                 }
                 line_num += 1;
+            }
+
+            // If we found matches in this file, render them as a group
+            if (matching_lines.items.len > 0) {
+                try renderGrepFileResults(ctx, full_path, matching_lines.items, writer);
+                found_count.* += matching_lines.items.len;
             }
         } else if (entry_type == c.GIT_OBJECT_TREE) {
             // Recursively search subdirectories
@@ -459,7 +467,8 @@ fn searchPickaxeFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git
     var found_count: usize = 0;
     const max_results = 50;
 
-    try writer.writeAll("<div class='log-list'>\n");
+    try writer.writeAll("<table class='search-results'>\n");
+    try writer.writeAll("<tr><th>Commit</th><th>File</th><th>Change</th><th>Line</th></tr>\n");
 
     while (walk.next()) |oid| {
         if (found_count >= max_results) break;
@@ -480,19 +489,35 @@ fn searchPickaxeFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git
         var commit_tree = try commit.tree();
         defer commit_tree.free();
 
-        // Check if this commit changes the search term count
-        const found = if (parent_tree) |*pt|
-            try diffContainsChange(ctx, repo, @constCast(pt), &commit_tree, search_term)
-        else
-            try treeContainsString(ctx, repo, &commit_tree, search_term);
+        // Collect matching changes
+        var matches = std.ArrayList(PickaxeMatch).empty;
+        defer {
+            for (matches.items) |*match| {
+                ctx.allocator.free(match.file_path);
+                for (match.lines.items) |*line| {
+                    ctx.allocator.free(line.content);
+                }
+                match.lines.deinit(ctx.allocator);
+            }
+            matches.deinit(ctx.allocator);
+        }
 
-        if (found) {
-            try renderPickaxeResult(ctx, &commit, &oid, search_term, writer);
-            found_count += 1;
+        if (parent_tree) |*pt| {
+            try collectPickaxeMatches(ctx, repo, @constCast(pt), &commit_tree, search_term, &matches);
+        } else {
+            try collectInitialMatches(ctx, repo, &commit_tree, search_term, &matches);
+        }
+
+        if (matches.items.len > 0) {
+            for (matches.items) |*match| {
+                try renderPickaxeMatch(ctx, &commit, &oid, match, writer);
+                found_count += 1;
+                if (found_count >= max_results) break;
+            }
         }
     }
 
-    try writer.writeAll("</div>\n");
+    try writer.writeAll("</table>\n");
 
     if (found_count == 0) {
         try writer.writeAll("<p>No commits found that add or remove the search term.</p>\n");
@@ -503,7 +528,18 @@ fn searchPickaxeFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git
     }
 }
 
-fn diffContainsChange(_: *gitweb.Context, repo: *git.Repository, old_tree: *git.Tree, new_tree: *git.Tree, search_term: []const u8) !bool {
+const PickaxeMatch = struct {
+    file_path: []const u8,
+    lines: std.ArrayList(MatchLine),
+};
+
+const MatchLine = struct {
+    line_num: usize,
+    content: []const u8,
+    is_addition: bool,
+};
+
+fn collectPickaxeMatches(ctx: *gitweb.Context, repo: *git.Repository, old_tree: *git.Tree, new_tree: *git.Tree, search_term: []const u8, matches: *std.ArrayList(PickaxeMatch)) !void {
     // Get diff between trees
     var diff = try git.Diff.treeToTree(repo.repo, old_tree.tree, new_tree.tree, null);
     defer diff.free();
@@ -513,55 +549,99 @@ fn diffContainsChange(_: *gitweb.Context, repo: *git.Repository, old_tree: *git.
     for (0..num_deltas) |i| {
         const delta = diff.getDelta(i) orelse continue;
 
+        const file_path = if (delta.new_file.path) |p| std.mem.span(p) else if (delta.old_file.path) |p| std.mem.span(p) else continue;
+
         // Get old and new file content
-        const old_count = if (delta.old_file.id.id[0] != 0) blk: {
-            var old_blob = repo.lookupBlob(&delta.old_file.id) catch break :blk 0;
+        const old_content = if (delta.old_file.id.id[0] != 0) blk: {
+            var old_blob = repo.lookupBlob(&delta.old_file.id) catch break :blk "";
             defer old_blob.free();
-            if (old_blob.isBinary()) break :blk 0;
-            break :blk countOccurrences(old_blob.content(), search_term);
-        } else 0;
+            if (old_blob.isBinary()) break :blk "";
+            break :blk old_blob.content();
+        } else "";
 
-        const new_count = if (delta.new_file.id.id[0] != 0) blk: {
-            var new_blob = repo.lookupBlob(&delta.new_file.id) catch break :blk 0;
+        const new_content = if (delta.new_file.id.id[0] != 0) blk: {
+            var new_blob = repo.lookupBlob(&delta.new_file.id) catch break :blk "";
             defer new_blob.free();
-            if (new_blob.isBinary()) break :blk 0;
-            break :blk countOccurrences(new_blob.content(), search_term);
-        } else 0;
+            if (new_blob.isBinary()) break :blk "";
+            break :blk new_blob.content();
+        } else "";
 
-        // If occurrence count changed, we found a pickaxe hit
+        // Check if occurrence count changed
+        const old_count = countOccurrences(old_content, search_term);
+        const new_count = countOccurrences(new_content, search_term);
+
         if (old_count != new_count) {
-            return true;
+            var match_lines = std.ArrayList(MatchLine).empty;
+
+            // Find lines that were added or removed
+            if (new_count > old_count) {
+                // Term was added - find the new lines
+                try findMatchingLines(ctx, new_content, search_term, true, &match_lines);
+            } else {
+                // Term was removed - find the old lines
+                try findMatchingLines(ctx, old_content, search_term, false, &match_lines);
+            }
+
+            if (match_lines.items.len > 0) {
+                const match = PickaxeMatch{
+                    .file_path = try ctx.allocator.dupe(u8, file_path),
+                    .lines = match_lines,
+                };
+                try matches.append(ctx.allocator, match);
+            } else {
+                match_lines.deinit(ctx.allocator);
+            }
         }
     }
-
-    return false;
 }
 
-fn treeContainsString(ctx: *gitweb.Context, repo: *git.Repository, tree: *git.Tree, search_term: []const u8) !bool {
+fn collectInitialMatches(ctx: *gitweb.Context, repo: *git.Repository, tree: *git.Tree, search_term: []const u8, matches: *std.ArrayList(PickaxeMatch)) !void {
+    try collectInitialMatchesRecursive(ctx, repo, tree, "", search_term, matches);
+}
+
+fn collectInitialMatchesRecursive(ctx: *gitweb.Context, repo: *git.Repository, tree: *git.Tree, path_prefix: []const u8, search_term: []const u8, matches: *std.ArrayList(PickaxeMatch)) !void {
     const entry_count = tree.entryCount();
     for (0..entry_count) |i| {
         const entry = tree.entryByIndex(i) orelse continue;
+        const entry_name = std.mem.span(c.git_tree_entry_name(entry));
         const entry_type = c.git_tree_entry_type(entry);
+
+        const full_path = if (path_prefix.len > 0)
+            try std.fmt.allocPrint(ctx.allocator, "{s}/{s}", .{ path_prefix, entry_name })
+        else
+            try ctx.allocator.dupe(u8, entry_name);
+        defer ctx.allocator.free(full_path);
 
         if (entry_type == c.GIT_OBJECT_BLOB) {
             const blob_oid = c.git_tree_entry_id(entry);
             var blob = repo.lookupBlob(@constCast(blob_oid)) catch continue;
             defer blob.free();
 
-            if (!blob.isBinary() and countOccurrences(blob.content(), search_term) > 0) {
-                return true;
+            if (!blob.isBinary()) {
+                const content = blob.content();
+                if (countOccurrences(content, search_term) > 0) {
+                    var match_lines = std.ArrayList(MatchLine).empty;
+                    try findMatchingLines(ctx, content, search_term, true, &match_lines);
+
+                    if (match_lines.items.len > 0) {
+                        const match = PickaxeMatch{
+                            .file_path = try ctx.allocator.dupe(u8, full_path),
+                            .lines = match_lines,
+                        };
+                        try matches.append(ctx.allocator, match);
+                    } else {
+                        match_lines.deinit(ctx.allocator);
+                    }
+                }
             }
         } else if (entry_type == c.GIT_OBJECT_TREE) {
             const sub_tree_oid = c.git_tree_entry_id(entry);
             var sub_tree = repo.lookupTree(@constCast(sub_tree_oid)) catch continue;
             defer sub_tree.free();
 
-            if (try treeContainsString(ctx, repo, &sub_tree, search_term)) {
-                return true;
-            }
+            try collectInitialMatchesRecursive(ctx, repo, &sub_tree, full_path, search_term, matches);
         }
     }
-    return false;
 }
 
 fn countOccurrences(haystack: []const u8, needle: []const u8) usize {
@@ -578,43 +658,88 @@ fn countOccurrences(haystack: []const u8, needle: []const u8) usize {
     return count;
 }
 
-fn renderPickaxeResult(ctx: *gitweb.Context, commit: *git.Commit, oid: *const c.git_oid, search_term: []const u8, writer: anytype) !void {
-    const message = commit.message();
-    const parsed_msg = parsing.parseCommitMessage(message);
-    const author_sig = commit.author();
-    const author_name = std.mem.span(author_sig.name);
+fn findMatchingLines(ctx: *gitweb.Context, content: []const u8, search_term: []const u8, is_addition: bool, match_lines: *std.ArrayList(MatchLine)) !void {
+    var lines = std.mem.splitScalar(u8, content, '\n');
+    var line_num: usize = 1;
 
+    while (lines.next()) |line| {
+        if (std.mem.indexOf(u8, line, search_term) != null) {
+            const match_line = MatchLine{
+                .line_num = line_num,
+                .content = try ctx.allocator.dupe(u8, line),
+                .is_addition = is_addition,
+            };
+            try match_lines.append(ctx.allocator, match_line);
+
+            // Limit to 5 matching lines per file
+            if (match_lines.items.len >= 5) break;
+        }
+        line_num += 1;
+    }
+}
+
+fn renderPickaxeMatch(ctx: *gitweb.Context, commit: *git.Commit, oid: *const c.git_oid, match: *PickaxeMatch, writer: anytype) !void {
     var oid_str: [40]u8 = undefined;
     _ = c.git_oid_fmt(&oid_str, oid);
 
-    try writer.writeAll("<div class='log-item'>\n");
+    const message = commit.message();
+    const parsed_msg = parsing.parseCommitMessage(message);
 
-    // First line: commit message
-    try writer.writeAll("<div class='log-message'>\n");
-    try shared.writeCommitLink(ctx, writer, &oid_str, null);
-    try writer.writeAll(" ");
-    try html.htmlEscape(writer, parsed_msg.subject);
-    try writer.writeAll(" <span class='pickaxe-indicator'>[");
-    try html.htmlEscape(writer, search_term);
-    try writer.writeAll("]</span>");
-    try writer.writeAll("</div>\n");
+    for (match.lines.items) |*line| {
+        try writer.writeAll("<tr>");
 
-    // Second line: metadata
-    try writer.writeAll("<div class='log-meta'>\n");
-    try writer.print("<span class='log-author'>{s}</span>", .{author_name});
-    try writer.writeAll("<span class='log-age'>");
-    try shared.formatAge(writer, commit.time());
-    try writer.writeAll("</span>");
-    try writer.writeAll("</div>\n");
+        // Commit column
+        try writer.writeAll("<td>");
+        try writer.writeAll("<a href='?");
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
+        }
+        try writer.print("cmd=commit&id={s}' title='", .{&oid_str});
+        try html.htmlEscape(writer, parsed_msg.subject);
+        try writer.print("'>{s}</a>", .{oid_str[0..7]});
+        try writer.writeAll("</td>");
 
-    try writer.writeAll("</div>\n");
+        // File path column - linked to blob view at this commit with line number
+        try writer.writeAll("<td>");
+        try writer.writeAll("<a href='?");
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
+        }
+        try writer.writeAll("cmd=blob&path=");
+        try html.urlEncodePath(writer, match.file_path);
+        try writer.print("&id={s}#L{d}'>", .{ &oid_str, line.line_num });
+        try html.htmlEscape(writer, match.file_path);
+        try writer.writeAll("</a>");
+        try writer.writeAll("</td>");
+
+        // Change type column
+        try writer.writeAll("<td>");
+        if (line.is_addition) {
+            try writer.writeAll("<span style='color: green'>+</span>");
+        } else {
+            try writer.writeAll("<span style='color: red'>-</span>");
+        }
+        try writer.writeAll("</td>");
+
+        // Line content column
+        try writer.writeAll("<td><code>");
+        const truncated = if (line.content.len > 100) line.content[0..97] else line.content;
+        try html.htmlEscape(writer, truncated);
+        if (line.content.len > 100) {
+            try writer.writeAll("...");
+        }
+        try writer.writeAll("</code></td>");
+
+        try writer.writeAll("</tr>\n");
+    }
 }
 
-fn renderGrepResult(ctx: *gitweb.Context, file_path: []const u8, line_num: usize, line_content: []const u8, writer: anytype) !void {
-    try writer.writeAll("<tr>");
+fn renderGrepFileResults(ctx: *gitweb.Context, file_path: []const u8, matches: []const GrepMatch, writer: anytype) !void {
+    // File container with header
+    try writer.writeAll("<div class='file-section'>\n");
 
-    // File path with link to blob (include branch parameter)
-    try writer.writeAll("<td>");
+    // File header
+    try writer.writeAll("<div class='file-header'>\n");
     try writer.writeAll("<a href='?");
     if (ctx.repo) |r| {
         try writer.print("r={s}&", .{r.name});
@@ -625,12 +750,78 @@ fn renderGrepResult(ctx: *gitweb.Context, file_path: []const u8, line_num: usize
         try writer.print("&h={s}", .{h});
     }
     try writer.writeAll("'>");
+    try writer.print("<strong>{s}</strong>", .{file_path});
+    try writer.writeAll("</a>");
+    try writer.print(" ({d} match{s})", .{ matches.len, if (matches.len == 1) "" else "es" });
+    try writer.writeAll("</div>\n");
+
+    // Render matches in blob style
+    try writer.print("<pre class='blob' data-filename='{s}'>", .{file_path});
+    try writer.writeAll("<table class='blob-content'>");
+
+    for (matches) |match| {
+        try writer.writeAll("<tr>");
+
+        // Line number column - link to blob page at specific line
+        try writer.print("<td class='linenumber' id='L{d}'><a href='?", .{match.line_num});
+        if (ctx.repo) |r| {
+            try writer.print("r={s}&", .{r.name});
+        }
+        try writer.writeAll("cmd=blob&path=");
+        try html.urlEncodePath(writer, file_path);
+        if (ctx.query.get("h")) |h| {
+            try writer.print("&h={s}", .{h});
+        }
+        try writer.print("#L{d}'>{d}</a></td>", .{ match.line_num, match.line_num });
+
+        // Code content column
+        try writer.writeAll("<td class='code'>");
+        try html.htmlEscape(writer, match.content);
+        try writer.writeAll("</td>");
+
+        try writer.writeAll("</tr>\n");
+    }
+
+    try writer.writeAll("</table>");
+    try writer.writeAll("</pre>\n");
+    try writer.writeAll("</div>\n"); // Close file-section div
+}
+
+fn renderGrepResult(ctx: *gitweb.Context, file_path: []const u8, line_num: usize, line_content: []const u8, writer: anytype) !void {
+    try writer.writeAll("<tr>");
+
+    // File path with link to blob at specific line number
+    try writer.writeAll("<td>");
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=blob&path=");
+    try html.urlEncodePath(writer, file_path);
+    if (ctx.query.get("h")) |h| {
+        try writer.print("&h={s}", .{h});
+    }
+    try writer.print("#L{d}", .{line_num});
+    try writer.writeAll("'>");
     try html.htmlEscape(writer, file_path);
     try writer.writeAll("</a>");
     try writer.writeAll("</td>");
 
-    // Line number
-    try writer.print("<td>{d}</td>", .{line_num});
+    // Line number (also linked to the specific line)
+    try writer.writeAll("<td>");
+    try writer.writeAll("<a href='?");
+    if (ctx.repo) |r| {
+        try writer.print("r={s}&", .{r.name});
+    }
+    try writer.writeAll("cmd=blob&path=");
+    try html.urlEncodePath(writer, file_path);
+    if (ctx.query.get("h")) |h| {
+        try writer.print("&h={s}", .{h});
+    }
+    try writer.print("#L{d}'>", .{line_num});
+    try writer.print("{d}", .{line_num});
+    try writer.writeAll("</a>");
+    try writer.writeAll("</td>");
 
     // Line content (truncated if too long)
     try writer.writeAll("<td><code>");

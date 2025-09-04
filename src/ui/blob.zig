@@ -224,11 +224,16 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
 
     // Check if content is too large
     if (content.len > 1024 * 1024) { // 1MB limit for syntax highlighting
+        try writer.writeAll("<div class='file-section'>\n");
         try writer.writeAll("<pre class='blob no-linenumbers'>");
         try html.htmlEscape(writer, content);
         try writer.writeAll("</pre>\n");
+        try writer.writeAll("</div>\n");
         return;
     }
+
+    // Wrap in file-section for border
+    try writer.writeAll("<div class='file-section'>\n");
 
     // Display with line numbers
     try writer.print("<pre class='blob' data-filename='{s}'>", .{path});
@@ -254,6 +259,7 @@ fn displayTextFile(ctx: *gitweb.Context, path: []const u8, content: []const u8, 
     try writer.writeAll("</table>");
 
     try writer.writeAll("</pre>\n");
+    try writer.writeAll("</div>\n"); // Close file-section
 }
 
 fn displayBinaryFile(ctx: *gitweb.Context, path: []const u8, blob_oid: *const c.git_oid, size: u64, writer: anytype) !void {

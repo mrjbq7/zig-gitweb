@@ -395,31 +395,31 @@ pre.diff {
     color: #0366d6;
 }
 
-/* Diff file list */
-div.diff-filelist {
+/* File list */
+div.file-list {
     margin: 15px 0;
     padding: 0;
 }
 
-div.diff-filelist table {
+div.file-list table {
     width: 100%;
     font-family: monospace;
     font-size: 0.875rem;
 }
 
-div.diff-filelist td {
+div.file-list td {
     padding: 3px 0;
 }
 
-/* Diff file sections for better separation */
-div.diff-file {
+/* File sections for better separation */
+div.file-section {
     margin: 20px 0;
     border: 1px solid #d1d5da;
     border-radius: 6px;
     overflow: hidden;
 }
 
-div.diff-file-header {
+div.file-header {
     background: #f1f8ff;
     border-bottom: 1px solid #d1d5da;
     padding: 10px 16px;
@@ -427,7 +427,7 @@ div.diff-file-header {
     font-weight: 600;
 }
 
-div.diff-file pre.diff {
+div.file-section pre.diff {
     margin: 0;
     border: none;
     border-radius: 0;
@@ -479,8 +479,8 @@ pre.blob {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     font-size: 0.875rem;
     background: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px;
+    border: none;
+    border-radius: 0;
     padding: 16px;
     overflow-x: auto;
     line-height: 1.45;
@@ -506,6 +506,16 @@ table.blob-content td.linenumber {
     user-select: none;
     width: 1%;
     white-space: nowrap;
+}
+
+/* Highlight targeted line when accessed via anchor */
+table.blob-content td.linenumber:target {
+    background-color: #fff8c5;
+    font-weight: bold;
+}
+
+table.blob-content td.linenumber:target + td.code {
+    background-color: #fff8c5;
 }
 
 /* Blame view */
@@ -1138,7 +1148,7 @@ table.search-results code {
     margin-top: 20px;
 }
 
-.ssdiff-file-header {
+.ssdiff .file-header {
     background: #f1f8ff;
     padding: 10px 16px;
     font-size: 0.875rem;
@@ -1395,7 +1405,7 @@ table.ssdiff tr:hover {
     
     pre.diff, pre.blob {
         background: #161b22;
-        border-color: #30363d;
+        border: none;
     }
     
     .diff .add {
@@ -1429,6 +1439,16 @@ table.ssdiff tr:hover {
         color: #8b949e;
     }
     
+    /* Highlight targeted line in dark mode */
+    table.blob-content td.linenumber:target {
+        background-color: #3a3000;
+        font-weight: bold;
+    }
+    
+    table.blob-content td.linenumber:target + td.code {
+        background-color: #3a3000;
+    }
+    
     table.blame td.commit {
         background: #161b22;
         border-right-color: #30363d;
@@ -1457,16 +1477,16 @@ table.ssdiff tr:hover {
     }
     
     /* Diff file list and headers for dark mode */
-    div.diff-filelist {
+    div.file-list {
         background: #161b22;
         border-color: #30363d;
     }
     
-    div.diff-file {
+    div.file-section {
         border-color: #30363d;
     }
     
-    div.diff-file-header {
+    div.file-header {
         background: #161b22;
         border-bottom-color: #30363d;
         color: #c9d1d9;
@@ -1504,7 +1524,7 @@ table.ssdiff tr:hover {
     }
     
     /* Side-by-side diff file header */
-    .ssdiff-file-header {
+    .ssdiff .file-header {
         background: #161b22;
         border-color: #30363d;
         color: #c9d1d9;
