@@ -222,13 +222,16 @@ fn collectStatisticsFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: 
         // Count by date (YYYY-MM)
         const year = @divTrunc(seconds_since_epoch, 31536000) + 1970;
         const month = @divTrunc(@mod(seconds_since_epoch, 31536000), 2629746) + 1; // Approximate
-        const date_key = try std.fmt.allocPrint(ctx.allocator, "{d}-{d:0>2}", .{ year, month });
+
+        var date_buf: [16]u8 = undefined;
+        const date_key = try std.fmt.bufPrint(&date_buf, "{d}-{d:0>2}", .{ year, month });
 
         const date_result = try stats_data.commits_by_date.getOrPut(date_key);
         if (date_result.found_existing) {
-            ctx.allocator.free(date_key);
             date_result.value_ptr.* += 1;
         } else {
+            const date_key_copy = try ctx.allocator.dupe(u8, date_key);
+            date_result.key_ptr.* = date_key_copy;
             date_result.value_ptr.* = 1;
         }
     }

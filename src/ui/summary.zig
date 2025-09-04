@@ -79,16 +79,12 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
             const target = @constCast(&branch.ref).target() orelse continue;
             const oid_str = try git.oidToString(target);
 
-            // Make a copy of the OID string for the map key
-            const key = try ctx.allocator.dupe(u8, oid_str[0..40]);
-            errdefer ctx.allocator.free(key);
-
-            const result = try refs_map.getOrPut(key);
+            // Only allocate if needed
+            const result = try refs_map.getOrPut(oid_str[0..40]);
             if (!result.found_existing) {
+                const key = try ctx.allocator.dupe(u8, oid_str[0..40]);
+                result.key_ptr.* = key;
                 result.value_ptr.* = std.ArrayList(shared.CommitItemInfo.RefInfo).empty;
-            } else {
-                // Free the duplicate key since we didn't use it
-                ctx.allocator.free(key);
             }
             try result.value_ptr.append(ctx.allocator, .{
                 .name = try ctx.allocator.dupe(u8, branch.name),
@@ -111,16 +107,12 @@ fn showRecentCommits(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) 
         const target = @constCast(&tag.ref).target() orelse continue;
         const oid_str = try git.oidToString(target);
 
-        // Make a copy of the OID string for the map key
-        const key = try ctx.allocator.dupe(u8, oid_str[0..40]);
-        errdefer ctx.allocator.free(key);
-
-        const result = try refs_map.getOrPut(key);
+        // Only allocate if needed
+        const result = try refs_map.getOrPut(oid_str[0..40]);
         if (!result.found_existing) {
+            const key = try ctx.allocator.dupe(u8, oid_str[0..40]);
+            result.key_ptr.* = key;
             result.value_ptr.* = std.ArrayList(shared.CommitItemInfo.RefInfo).empty;
-        } else {
-            // Free the duplicate key since we didn't use it
-            ctx.allocator.free(key);
         }
         try result.value_ptr.append(ctx.allocator, .{
             .name = try ctx.allocator.dupe(u8, tag.name),
