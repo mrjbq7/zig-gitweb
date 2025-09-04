@@ -120,8 +120,11 @@ fn writeRepoTabs(ctx: *gitweb.Context, repo: *gitweb.Repo, writer: anytype) !voi
     // Summary tab
     try writeTab(writer, "summary", "summary", ctx.cmd, repo.name, current_branch, null);
 
-    // Refs tab
-    try writeTab(writer, "refs", "refs", ctx.cmd, repo.name, current_branch, null);
+    // Branches tab
+    try writeTab(writer, "branches", "branches", ctx.cmd, repo.name, current_branch, null);
+
+    // Tags tab
+    try writeTab(writer, "tags", "tags", ctx.cmd, repo.name, current_branch, null);
 
     // Log tab - preserve path if present
     try writeTab(writer, "log", "log", ctx.cmd, repo.name, current_branch, current_path);

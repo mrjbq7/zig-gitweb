@@ -18,6 +18,15 @@ pub fn main() !void {
     _ = git.c.git_libgit2_init();
     defer _ = git.c.git_libgit2_shutdown();
 
+    // Set safe.directory to allow access to all repositories
+    // This is needed when running as a different user (e.g., www-data)
+    var git_config: ?*git.c.git_config = null;
+    if (git.c.git_config_open_default(&git_config) == 0) {
+        defer git.c.git_config_free(git_config);
+        // Add all directories as safe
+        _ = git.c.git_config_set_string(git_config, "safe.directory", "*");
+    }
+
     // Set up environment similar to cgit's constructor
     try setupEnvironment();
 

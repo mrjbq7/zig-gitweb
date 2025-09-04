@@ -7,6 +7,8 @@ const ui_commit = @import("ui/commit.zig");
 const ui_diff = @import("ui/diff.zig");
 const ui_log = @import("ui/log.zig");
 const ui_refs = @import("ui/refs.zig");
+const ui_branches = @import("ui/branches.zig");
+const ui_tags = @import("ui/tags.zig");
 const ui_tag = @import("ui/tag.zig");
 const ui_patch = @import("ui/patch.zig");
 const ui_blob = @import("ui/blob.zig");
@@ -31,6 +33,7 @@ const commands = [_]Command{
     .{ .name = "atom", .handler = ui_atom.atom, .wants_repo = true },
     .{ .name = "blame", .handler = ui_blame.blame, .wants_repo = true },
     .{ .name = "blob", .handler = ui_blob.blob, .wants_repo = true },
+    .{ .name = "branches", .handler = ui_branches.branches, .wants_repo = true },
     .{ .name = "commit", .handler = ui_commit.commit, .wants_repo = true },
     .{ .name = "diff", .handler = ui_diff.diff, .wants_repo = true },
     .{ .name = "info", .handler = ui_clone.info, .wants_repo = true },
@@ -47,6 +50,7 @@ const commands = [_]Command{
     .{ .name = "stats", .handler = ui_stats.stats, .wants_repo = true },
     .{ .name = "summary", .handler = ui_summary.summary, .wants_repo = true },
     .{ .name = "tag", .handler = ui_tag.tag, .wants_repo = true },
+    .{ .name = "tags", .handler = ui_tags.tags, .wants_repo = true },
     .{ .name = "tree", .handler = ui_tree.tree, .wants_repo = true },
 };
 
@@ -66,6 +70,7 @@ pub fn dispatch(ctx: *gitweb.Context, writer: anytype) !void {
     if (std.mem.eql(u8, cmd, "atom")) return ui_atom.atom(ctx, writer);
     if (std.mem.eql(u8, cmd, "blame")) return ui_blame.blame(ctx, writer);
     if (std.mem.eql(u8, cmd, "blob")) return ui_blob.blob(ctx, writer);
+    if (std.mem.eql(u8, cmd, "branches")) return ui_branches.branches(ctx, writer);
     if (std.mem.eql(u8, cmd, "commit")) return ui_commit.commit(ctx, writer);
     if (std.mem.eql(u8, cmd, "diff")) return ui_diff.diff(ctx, writer);
     if (std.mem.eql(u8, cmd, "info")) return ui_clone.info(ctx, writer);
@@ -81,6 +86,7 @@ pub fn dispatch(ctx: *gitweb.Context, writer: anytype) !void {
     if (std.mem.eql(u8, cmd, "snapshot")) return ui_snapshot.snapshot(ctx, writer);
     if (std.mem.eql(u8, cmd, "stats")) return ui_stats.stats(ctx, writer);
     if (std.mem.eql(u8, cmd, "tag")) return ui_tag.tag(ctx, writer);
+    if (std.mem.eql(u8, cmd, "tags")) return ui_tags.tags(ctx, writer);
     if (std.mem.eql(u8, cmd, "tree")) return ui_tree.tree(ctx, writer);
 
     // If still no match, default to repolist or summary
