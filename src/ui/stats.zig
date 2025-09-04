@@ -64,12 +64,6 @@ pub fn stats(ctx: *gitweb.Context, writer: anytype) !void {
     try renderCommitsByHourChart(writer, &stats_data);
     try writer.writeAll("</div>\n");
 
-    // Most Active Files
-    try writer.writeAll("<div class='stats-section'>\n");
-    try writer.writeAll("<h3>Most Active Files</h3>\n");
-    try renderMostActiveFiles(ctx, writer, &stats_data);
-    try writer.writeAll("</div>\n");
-
     try writer.writeAll("</div>\n");
 }
 
