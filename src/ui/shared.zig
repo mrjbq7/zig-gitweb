@@ -575,19 +575,19 @@ pub fn tryResolveRef(repo: *git.Repository, ref_name: []const u8) ?git.Reference
     if (repo.getReference(ref_name)) |ref| {
         return ref;
     } else |_| {}
-    
-    // Try with refs/heads/ prefix  
+
+    // Try with refs/heads/ prefix
     const branch_ref = std.fmt.bufPrint(&ref_buf, "refs/heads/{s}", .{ref_name}) catch return null;
     if (repo.getReference(branch_ref)) |ref| {
         return ref;
     } else |_| {}
-    
+
     // Try with refs/tags/ prefix
     const tag_ref = std.fmt.bufPrint(&ref_buf, "refs/tags/{s}", .{ref_name}) catch return null;
     if (repo.getReference(tag_ref)) |ref| {
         return ref;
     } else |_| {}
-    
+
     return null;
 }
 

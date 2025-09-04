@@ -38,7 +38,7 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
         }
 
         var iter = dir.iterate();
-        
+
         // Use stack buffers for path operations (outside loop for efficiency)
         var path_buf: [1024]u8 = undefined;
         var head_buf: [1024]u8 = undefined;
@@ -46,7 +46,7 @@ pub fn repolist(ctx: *gitweb.Context, writer: anytype) !void {
 
         while (try iter.next()) |entry| {
             // Check if this is a git repository (either bare or .git directory)
-            
+
             const is_git_repo = blk: {
                 if (std.mem.endsWith(u8, entry.name, ".git")) {
                     break :blk true;

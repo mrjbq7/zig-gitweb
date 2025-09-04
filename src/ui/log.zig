@@ -66,21 +66,7 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     var git_repo = (try shared.openRepositoryWithError(ctx, writer)) orelse return;
     defer git_repo.close();
 
-    // Build a map of commit OIDs to their refs (branches and tags)
-    var refs_map_raw = try shared.collectRefsMap(ctx, &git_repo);
-    defer {
-        var iter = refs_map_raw.iterator();
-        while (iter.next()) |entry| {
-            for (entry.value_ptr.items) |item| {
-                ctx.allocator.free(item);
-            }
-            entry.value_ptr.deinit(ctx.allocator);
-            ctx.allocator.free(entry.key_ptr.*);
-        }
-        refs_map_raw.deinit();
-    }
-
-    // Convert to the expected format with RefInfo
+    // Build a map of commit OIDs to their refs with RefInfo directly
     var refs_map = std.StringHashMap(std.ArrayList(RefInfo)).init(ctx.allocator);
     defer {
         var iter = refs_map.iterator();
@@ -94,25 +80,52 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
         refs_map.deinit();
     }
 
-    // Convert refs from raw map to RefInfo format
-    var raw_iter = refs_map_raw.iterator();
-    while (raw_iter.next()) |entry| {
-        const key = try ctx.allocator.dupe(u8, entry.key_ptr.*);
-        var result = try refs_map.getOrPut(key);
-        if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(RefInfo).empty;
+    // Collect refs directly as RefInfo
+    var ref_iter: ?*c.git_reference_iterator = null;
+    if (c.git_reference_iterator_new(&ref_iter, git_repo.repo) != 0) return error.RefIteratorError;
+    defer c.git_reference_iterator_free(ref_iter);
+
+    while (true) {
+        var ref: ?*c.git_reference = null;
+        const result = c.git_reference_next(&ref, ref_iter);
+        if (result == c.GIT_ITEROVER) break;
+        if (result != 0) continue;
+        defer c.git_reference_free(ref);
+
+        const ref_type = c.git_reference_type(ref);
+        if (ref_type != c.GIT_REFERENCE_DIRECT) continue;
+
+        const ref_oid = c.git_reference_target(ref) orelse continue;
+        const ref_name = c.git_reference_name(ref);
+        const name_str = std.mem.span(ref_name);
+
+        // Extract short name and determine type
+        var short_name: []const u8 = undefined;
+        var ref_info_type: RefInfo = undefined;
+
+        if (std.mem.startsWith(u8, name_str, "refs/heads/")) {
+            short_name = name_str["refs/heads/".len..];
+            ref_info_type = .{ .name = undefined, .ref_type = .branch };
+        } else if (std.mem.startsWith(u8, name_str, "refs/tags/")) {
+            short_name = name_str["refs/tags/".len..];
+            ref_info_type = .{ .name = undefined, .ref_type = .tag };
         } else {
-            ctx.allocator.free(key);
+            continue;
         }
 
-        for (entry.value_ptr.items) |name| {
-            // Determine if it's a branch or tag based on name conventions
-            const is_tag = std.mem.startsWith(u8, name, "v") or std.mem.indexOf(u8, name, ".") != null;
-            try result.value_ptr.append(ctx.allocator, .{
-                .name = try ctx.allocator.dupe(u8, name),
-                .ref_type = if (is_tag) .tag else .branch,
-            });
+        // Get or create entry for this OID
+        const oid_str = try git.oidToString(ref_oid);
+        var map_result = try refs_map.getOrPut(&oid_str);
+        if (!map_result.found_existing) {
+            // Only allocate if we're creating a new entry
+            const key = try ctx.allocator.dupe(u8, &oid_str);
+            map_result.key_ptr.* = key;
+            map_result.value_ptr.* = std.ArrayList(RefInfo).empty;
         }
+
+        // Add RefInfo
+        ref_info_type.name = try ctx.allocator.dupe(u8, short_name);
+        try map_result.value_ptr.append(ctx.allocator, ref_info_type);
     }
 
     // Get starting point - prefer id (commit hash) over h (branch/ref)
@@ -294,8 +307,9 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
         try shared.formatAge(writer, commit_time);
         try writer.writeAll("</span>");
 
-        // File/line statistics
-        if (ctx.cfg.enable_log_filecount or ctx.cfg.enable_log_linecount) {
+        // File/line statistics - only compute if explicitly requested
+        const show_stats = ctx.query.get("stats");
+        if (show_stats != null and (ctx.cfg.enable_log_filecount or ctx.cfg.enable_log_linecount)) {
             const stats = try getCommitStats(&git_repo, &commit);
 
             try writer.writeAll("<span class='log-stats'>");
@@ -348,54 +362,31 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
 }
 
 fn commitTouchesPath(repo: *git.Repository, commit: *git.Commit, path: []const u8) !bool {
-    // For performance, we'll use a simpler approach:
-    // Create a diff with pathspec filtering
-
+    // Fast path: use libgit2's pathspec filtering with minimal diff generation
     const parent_count = commit.parentCount();
 
-    // Get commit tree
-    var commit_tree = try commit.tree();
-    defer commit_tree.free();
-
-    // For initial commit, check if path exists
+    // For initial commits, just check if path exists
     if (parent_count == 0) {
-        // Check if path exists in this commit
-        var path_parts = std.mem.tokenizeAny(u8, path, "/");
-        var current_tree = commit_tree;
+        var commit_tree = try commit.tree();
+        defer commit_tree.free();
 
-        while (path_parts.next()) |part| {
-            const entry = current_tree.entryByName(part);
-            if (entry == null) {
-                if (&current_tree != &commit_tree) current_tree.free();
-                return false;
-            }
+        // Use git_tree_entry_bypath for direct lookup
+        var path_buf: [1024]u8 = undefined;
+        const c_path = try std.fmt.bufPrintZ(&path_buf, "{s}", .{path});
 
-            if (path_parts.peek() != null) {
-                if (c.git_tree_entry_type(@ptrCast(entry)) == c.GIT_OBJECT_TREE) {
-                    const tree_oid = c.git_tree_entry_id(@ptrCast(entry));
-                    const new_tree = try repo.lookupTree(@constCast(tree_oid));
-                    if (&current_tree != &commit_tree) {
-                        current_tree.free();
-                    }
-                    current_tree = new_tree;
-                } else {
-                    if (&current_tree != &commit_tree) current_tree.free();
-                    return false;
-                }
-            }
-        }
+        var entry: ?*c.git_tree_entry = null;
+        const result = c.git_tree_entry_bypath(&entry, commit_tree.tree, c_path);
+        if (entry != null) c.git_tree_entry_free(entry);
 
-        if (&current_tree != &commit_tree) current_tree.free();
-        return true;
+        return result == 0;
     }
 
-    // For commits with parents, use diff options with pathspec
+    // For commits with parents, use lightweight diff with early termination
     var diff_opts: c.git_diff_options = undefined;
     _ = c.git_diff_options_init(&diff_opts, c.GIT_DIFF_OPTIONS_VERSION);
 
-    // Set up pathspec for the path we're interested in
-    // Need null-terminated string for C API
-    var path_buf: [4096]u8 = undefined;
+    // Set up pathspec for the path
+    var path_buf: [1024]u8 = undefined;
     const c_path = try std.fmt.bufPrintZ(&path_buf, "{s}", .{path});
 
     const pathspec_array: c.git_strarray = .{
@@ -404,22 +395,30 @@ fn commitTouchesPath(repo: *git.Repository, commit: *git.Commit, path: []const u
     };
     diff_opts.pathspec = pathspec_array;
 
-    // Only need to know if files changed, not the actual changes
+    // Optimize: only care about deltas, not content
     diff_opts.flags |= c.GIT_DIFF_SKIP_BINARY_CHECK;
-    diff_opts.flags |= c.GIT_DIFF_INCLUDE_UNTRACKED;
+    diff_opts.flags |= c.GIT_DIFF_IGNORE_FILEMODE;
+    diff_opts.flags |= c.GIT_DIFF_DISABLE_PATHSPEC_MATCH;
 
+    // Use abbreviated diff (stop at first delta)
     var parent = try commit.parent(0);
     defer parent.free();
 
     var parent_tree = try parent.tree();
     defer parent_tree.free();
 
-    // Create diff with pathspec
-    var diff = try git.Diff.treeToTree(repo.repo, parent_tree.tree, commit_tree.tree, @ptrCast(&diff_opts));
-    defer diff.free();
+    var commit_tree = try commit.tree();
+    defer commit_tree.free();
 
-    // If there are any deltas, the path was touched
-    return diff.numDeltas() > 0;
+    // Create diff but use callback for early termination
+    var diff: ?*c.git_diff = null;
+    if (c.git_diff_tree_to_tree(&diff, repo.repo, parent_tree.tree, commit_tree.tree, &diff_opts) != 0) {
+        return false;
+    }
+    defer c.git_diff_free(diff);
+
+    // Just check if any deltas exist
+    return c.git_diff_num_deltas(diff) > 0;
 }
 
 const CommitStats = struct {

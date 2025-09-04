@@ -177,7 +177,7 @@ fn displayTreeEntries(ctx: *gitweb.Context, repo: *git.Repository, tree_obj: *gi
 
     // Stack buffer for path construction
     var path_buf: [1024]u8 = undefined;
-    
+
     // Display entries
     for (entries) |entry| {
         const entry_name = std.mem.span(c.git_tree_entry_name(@as(?*const c.git_tree_entry, entry)));
