@@ -8,15 +8,11 @@ const parsing = @import("../parsing.zig");
 const c = git.c;
 
 pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
-    const repo = ctx.repo orelse return error.NoRepo;
+    _ = ctx.repo orelse return error.NoRepo;
 
     try writer.writeAll("<div class='commit'>\n");
 
-    var git_repo = git.Repository.open(repo.path) catch {
-        try writer.writeAll("<p>Unable to open repository.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
+    var git_repo = (try shared.openRepositoryWithError(ctx, writer)) orelse return;
     defer git_repo.close();
 
     // Get the commit - either from ID or from branch/HEAD
@@ -64,20 +60,10 @@ pub fn commit(ctx: *gitweb.Context, writer: anytype) !void {
             break :blk try git_repo.lookupCommit(head_oid);
         } else {
             // Try to get the reference
-            var ref = git_repo.getReference(ref_name) catch {
-                // Try with refs/heads/ prefix
-                const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, @as(u8, 0));
-                defer ctx.allocator.free(full_ref);
-
-                var ref2 = git_repo.getReference(full_ref) catch {
-                    try writer.writeAll("<p>Unable to find branch reference.</p>\n");
-                    try writer.writeAll("</div>\n");
-                    return;
-                };
-                defer ref2.free();
-
-                const oid = ref2.target() orelse return error.NoCommit;
-                break :blk try git_repo.lookupCommit(oid);
+            var ref = shared.resolveReference(ctx, &git_repo, ref_name) catch {
+                try writer.writeAll("<p>Unable to find branch reference.</p>\n");
+                try writer.writeAll("</div>\n");
+                return;
             };
             defer ref.free();
 

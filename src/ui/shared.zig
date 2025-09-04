@@ -129,6 +129,205 @@ pub fn writeDiffLink(ctx: *gitweb.Context, writer: anytype, old_oid: []const u8,
 const git = @import("../git.zig");
 const parsing = @import("../parsing.zig");
 
+// Repository opening helper that handles error display consistently
+pub fn openRepositoryWithError(ctx: *gitweb.Context, writer: anytype) !?git.Repository {
+    const repo = ctx.repo orelse return error.NoRepository;
+    const git_repo = git.Repository.open(repo.path) catch {
+        try writer.writeAll("<p>Unable to open repository.</p>\n");
+        try writer.writeAll("</div>\n");
+        return null;
+    };
+    return git_repo;
+}
+
+// Resolve a reference by trying multiple prefixes
+pub fn resolveReference(ctx: *gitweb.Context, repo: *git.Repository, ref_name: []const u8) !git.Reference {
+    // Try direct reference
+    if (repo.getReference(ref_name)) |ref| {
+        return ref;
+    } else |_| {}
+
+    // Try with refs/heads/ prefix
+    const full_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/heads/{s}", .{ref_name}, 0);
+    defer ctx.allocator.free(full_ref);
+    if (repo.getReference(full_ref)) |ref| {
+        return ref;
+    } else |_| {}
+
+    // Try with refs/tags/ prefix
+    const tag_ref = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{ref_name}, 0);
+    defer ctx.allocator.free(tag_ref);
+    return repo.getReference(tag_ref);
+}
+
+// Resolve a reference or fall back to HEAD
+pub fn resolveReferenceOrHead(ctx: *gitweb.Context, repo: *git.Repository, ref_name: []const u8) !git.Reference {
+    return resolveReference(ctx, repo, ref_name) catch repo.getHead();
+}
+
+// Build a refs map from branches and tags for commit decoration
+pub fn collectRefsMap(ctx: *gitweb.Context, repo: *git.Repository) !std.StringHashMap(std.ArrayList([]const u8)) {
+    var refs_map = std.StringHashMap(std.ArrayList([]const u8)).init(ctx.allocator);
+    errdefer {
+        var iter = refs_map.iterator();
+        while (iter.next()) |entry| {
+            for (entry.value_ptr.items) |item| {
+                ctx.allocator.free(item);
+            }
+            entry.value_ptr.deinit(ctx.allocator);
+            ctx.allocator.free(entry.key_ptr.*);
+        }
+        refs_map.deinit();
+    }
+
+    // Collect branches
+    const branches = try repo.getBranches(ctx.allocator);
+    defer ctx.allocator.free(branches);
+
+    for (branches) |branch| {
+        if (!branch.is_remote) {
+            defer @constCast(&branch.ref).free();
+
+            const oid = @constCast(&branch.ref).target() orelse continue;
+            var oid_str: [40]u8 = undefined;
+            _ = git.c.git_oid_fmt(&oid_str, oid);
+
+            const key = try ctx.allocator.dupe(u8, &oid_str);
+            const result = try refs_map.getOrPut(key);
+            if (!result.found_existing) {
+                result.value_ptr.* = std.ArrayList([]const u8).empty;
+            } else {
+                ctx.allocator.free(key);
+            }
+
+            const branch_name = try ctx.allocator.dupe(u8, branch.name);
+            try result.value_ptr.append(ctx.allocator, branch_name);
+        }
+    }
+
+    // Collect tags
+    const tags = try repo.getTags(ctx.allocator);
+    defer {
+        for (tags) |tag| {
+            ctx.allocator.free(tag.name);
+            @constCast(&tag.ref).free();
+        }
+        ctx.allocator.free(tags);
+    }
+
+    for (tags) |tag| {
+        const oid = @constCast(&tag.ref).target() orelse continue;
+        var oid_str: [40]u8 = undefined;
+        _ = git.c.git_oid_fmt(&oid_str, oid);
+
+        const key = try ctx.allocator.dupe(u8, &oid_str);
+        const result = try refs_map.getOrPut(key);
+        if (!result.found_existing) {
+            result.value_ptr.* = std.ArrayList([]const u8).empty;
+        } else {
+            ctx.allocator.free(key);
+        }
+
+        const tag_name = try ctx.allocator.dupe(u8, tag.name);
+        try result.value_ptr.append(ctx.allocator, tag_name);
+    }
+
+    return refs_map;
+}
+
+// URL builder with common parameters
+pub const UrlParams = struct {
+    cmd: []const u8,
+    id: ?[]const u8 = null,
+    h: ?[]const u8 = null,
+    path: ?[]const u8 = null,
+    ofs: ?usize = null,
+    id2: ?[]const u8 = null,
+    fmt: ?[]const u8 = null,
+};
+
+pub fn buildUrl(writer: anytype, ctx: *gitweb.Context, params: UrlParams) !void {
+    try writer.writeAll("?");
+
+    // Always include repo if present
+    if (ctx.repo) |repo| {
+        try writer.print("r={s}&", .{repo.name});
+    }
+
+    // Command is required
+    try writer.print("cmd={s}", .{params.cmd});
+
+    // Optional parameters
+    if (params.id) |id| {
+        try writer.print("&id={s}", .{id});
+    }
+
+    if (params.h) |h| {
+        try writer.print("&h={s}", .{h});
+    } else if (ctx.query.get("h")) |h| {
+        // Preserve current branch if not overridden
+        try writer.print("&h={s}", .{h});
+    }
+
+    if (params.path) |path| {
+        try writer.writeAll("&path=");
+        try html.urlEncodePath(writer, path);
+    }
+
+    if (params.ofs) |ofs| {
+        try writer.print("&ofs={d}", .{ofs});
+    }
+
+    if (params.id2) |id2| {
+        try writer.print("&id2={s}", .{id2});
+    }
+
+    if (params.fmt) |fmt| {
+        try writer.print("&fmt={s}", .{fmt});
+    }
+}
+
+// Write a standard commit table row
+pub fn writeCommitRow(ctx: *gitweb.Context, writer: anytype, commit: *git.Commit, refs: ?[]const u8, show_graph: bool) !void {
+    try writer.writeAll("<tr>\n");
+
+    // Graph column if requested
+    if (show_graph) {
+        try writer.writeAll("<td class='graph'></td>\n");
+    }
+
+    // Age column
+    try writer.writeAll("<td class='age'>");
+    try formatAge(writer, commit.time);
+    try writer.writeAll("</td>\n");
+
+    // Author column
+    try writer.writeAll("<td class='author'>");
+    const author = commit.getAuthor();
+    try html.htmlEscape(writer, truncateString(author.name, 20));
+    try writer.writeAll("</td>\n");
+
+    // Message column with refs
+    try writer.writeAll("<td class='message'>");
+
+    var oid_str: [40]u8 = undefined;
+    _ = git.c.git_oid_fmt(&oid_str, &commit.oid);
+
+    try writeCommitLink(ctx, writer, &oid_str, null);
+    try writer.writeAll(" ");
+
+    const parsed = parsing.parseCommitMessage(commit.getMessage());
+    try html.htmlEscape(writer, parsed.subject);
+
+    if (refs) |ref_list| {
+        try writer.print(" <span class='refs'>{s}</span>", .{ref_list});
+    }
+
+    try writer.writeAll("</td>\n");
+
+    try writer.writeAll("</tr>\n");
+}
+
 // Shared branch info structure
 pub const BranchItemInfo = struct {
     name: []const u8,

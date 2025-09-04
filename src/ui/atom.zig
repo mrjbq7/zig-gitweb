@@ -20,7 +20,6 @@ pub fn atom(ctx: *gitweb.Context, writer: anytype) !void {
     }
 
     // TODO: Add actual commit entries
-    try writer.writeAll("  <!-- Commit entries will be added here -->\n");
 
     try writer.writeAll("</feed>\n");
 }

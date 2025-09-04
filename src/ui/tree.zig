@@ -8,7 +8,7 @@ const parsing = @import("../parsing.zig");
 const c = git.c;
 
 pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
-    const repo = ctx.repo orelse {
+    _ = ctx.repo orelse {
         try writer.writeAll("<div class='error'>\n");
         try writer.writeAll("<p>No repository specified.</p>\n");
         try writer.writeAll("</div>\n");
@@ -17,11 +17,7 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
 
     try writer.writeAll("<div class='tree'>\n");
 
-    var git_repo = git.Repository.open(repo.path) catch {
-        try writer.writeAll("<p>Unable to open repository.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
+    var git_repo = (try shared.openRepositoryWithError(ctx, writer)) orelse return;
     defer git_repo.close();
 
     // Get the tree to display
@@ -51,7 +47,7 @@ pub fn tree(ctx: *gitweb.Context, writer: anytype) !void {
         const ref_name = ctx.query.get("h") orelse "HEAD";
 
         // Get the reference
-        var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch |err| {
+        var ref = shared.resolveReferenceOrHead(ctx, &git_repo, ref_name) catch |err| {
             std.debug.print("tree: Failed to get reference '{s}': {}\n", .{ ref_name, err });
             try writer.writeAll("<p>Unable to find reference.</p>\n");
             try writer.writeAll("</div>\n");

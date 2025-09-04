@@ -78,7 +78,7 @@ pub fn writeFooter(ctx: *gitweb.Context, writer: anytype) !void {
         return;
     }
 
-    try writer.writeAll("</div> <!-- class=content -->\n");
+    try writer.writeAll("</div>\n");
 
     if (ctx.cfg.footer) |footer| {
         try writer.writeAll("<div class='footer'>");
@@ -106,7 +106,7 @@ pub fn writeFooter(ctx: *gitweb.Context, writer: anytype) !void {
         try writer.writeAll("</div>\n");
     }
 
-    try writer.writeAll("</div> <!-- id=gitweb -->\n");
+    try writer.writeAll("</div>\n");
     try writer.writeAll("</body>\n");
     try writer.writeAll("</html>\n");
 }

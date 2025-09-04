@@ -27,11 +27,7 @@ pub fn blob(ctx: *gitweb.Context, writer: anytype) !void {
     // Show breadcrumb
     try shared.writeBreadcrumb(ctx, writer, path);
 
-    var git_repo = git.Repository.open(repo.path) catch {
-        try writer.writeAll("<p>Unable to open repository.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
+    var git_repo = (try shared.openRepositoryWithError(ctx, writer)) orelse return;
     defer git_repo.close();
 
     // Get the commit - try id first, then h, then default to HEAD
@@ -48,7 +44,7 @@ pub fn blob(ctx: *gitweb.Context, writer: anytype) !void {
         const ref_name = ctx.query.get("h") orelse "HEAD";
 
         // Get the reference
-        var ref = git_repo.getReference(ref_name) catch git_repo.getHead() catch {
+        var ref = shared.resolveReferenceOrHead(ctx, &git_repo, ref_name) catch {
             try writer.writeAll("<p>Unable to find reference.</p>\n");
             try writer.writeAll("</div>\n");
             return;

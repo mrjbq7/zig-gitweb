@@ -13,7 +13,7 @@ const RefInfo = struct {
 };
 
 pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
-    const repo = ctx.repo orelse return error.NoRepo;
+    _ = ctx.repo orelse return error.NoRepo;
 
     try writer.writeAll("<div class='log'>\n");
 
@@ -63,19 +63,29 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
     }
     try writer.writeAll("</div>\n");
 
-    var git_repo = git.Repository.open(repo.path) catch {
-        try writer.writeAll("<p>Unable to open repository.</p>\n");
-        try writer.writeAll("</div>\n");
-        return;
-    };
+    var git_repo = (try shared.openRepositoryWithError(ctx, writer)) orelse return;
     defer git_repo.close();
 
     // Build a map of commit OIDs to their refs (branches and tags)
+    var refs_map_raw = try shared.collectRefsMap(ctx, &git_repo);
+    defer {
+        var iter = refs_map_raw.iterator();
+        while (iter.next()) |entry| {
+            for (entry.value_ptr.items) |item| {
+                ctx.allocator.free(item);
+            }
+            entry.value_ptr.deinit(ctx.allocator);
+            ctx.allocator.free(entry.key_ptr.*);
+        }
+        refs_map_raw.deinit();
+    }
+
+    // Convert to the expected format with RefInfo
     var refs_map = std.StringHashMap(std.ArrayList(RefInfo)).init(ctx.allocator);
     defer {
         var iter = refs_map.iterator();
         while (iter.next()) |entry| {
-            ctx.allocator.free(entry.key_ptr.*); // Free the key
+            ctx.allocator.free(entry.key_ptr.*);
             for (entry.value_ptr.items) |*ref_info| {
                 ctx.allocator.free(ref_info.name);
             }
@@ -84,80 +94,23 @@ pub fn log(ctx: *gitweb.Context, writer: anytype) !void {
         refs_map.deinit();
     }
 
-    // Collect all branches
-    var branch_iter: ?*c.git_branch_iterator = null;
-    if (c.git_branch_iterator_new(&branch_iter, @ptrCast(git_repo.repo), c.GIT_BRANCH_LOCAL) == 0) {
-        defer c.git_branch_iterator_free(branch_iter);
-
-        var ref: ?*c.git_reference = null;
-        var branch_type: c.git_branch_t = undefined;
-
-        while (c.git_branch_next(&ref, &branch_type, branch_iter) == 0) {
-            defer c.git_reference_free(ref);
-
-            const branch_name = c.git_reference_shorthand(ref);
-            if (branch_name == null) continue;
-
-            const target = c.git_reference_target(ref);
-            if (target == null) continue;
-
-            const oid_str = try git.oidToString(target);
-            const oid_key = try ctx.allocator.dupe(u8, &oid_str);
-
-            var entry = try refs_map.getOrPut(oid_key);
-            if (!entry.found_existing) {
-                entry.value_ptr.* = std.ArrayList(RefInfo).empty;
-            } else {
-                ctx.allocator.free(oid_key); // Free the duplicate key
-            }
-
-            try entry.value_ptr.append(ctx.allocator, .{
-                .name = try ctx.allocator.dupe(u8, std.mem.span(branch_name)),
-                .ref_type = .branch,
-            });
+    // Convert refs from raw map to RefInfo format
+    var raw_iter = refs_map_raw.iterator();
+    while (raw_iter.next()) |entry| {
+        const key = try ctx.allocator.dupe(u8, entry.key_ptr.*);
+        var result = try refs_map.getOrPut(key);
+        if (!result.found_existing) {
+            result.value_ptr.* = std.ArrayList(RefInfo).empty;
+        } else {
+            ctx.allocator.free(key);
         }
-    }
 
-    // Collect all tags
-    var tag_names: c.git_strarray = undefined;
-    if (c.git_tag_list(&tag_names, @ptrCast(git_repo.repo)) == 0) {
-        defer c.git_strarray_dispose(&tag_names);
-
-        for (0..tag_names.count) |i| {
-            const tag_name = tag_names.strings[i];
-
-            var ref: ?*c.git_reference = null;
-            const ref_name = try std.fmt.allocPrintSentinel(ctx.allocator, "refs/tags/{s}", .{std.mem.span(tag_name)}, 0);
-            defer ctx.allocator.free(ref_name);
-
-            if (c.git_reference_lookup(&ref, @ptrCast(git_repo.repo), ref_name) != 0) continue;
-            defer c.git_reference_free(ref);
-
-            const oid = c.git_reference_target(ref);
-            if (oid == null) continue;
-
-            // Check if it's an annotated tag
-            var target_oid = oid.*;
-            var tag_obj: ?*c.git_tag = null;
-            if (c.git_tag_lookup(&tag_obj, @ptrCast(git_repo.repo), oid) == 0) {
-                // Annotated tag - get the target commit
-                target_oid = c.git_tag_target_id(tag_obj).*;
-                c.git_object_free(@ptrCast(tag_obj));
-            }
-
-            const oid_str = try git.oidToString(&target_oid);
-            const oid_key = try ctx.allocator.dupe(u8, &oid_str);
-
-            var entry = try refs_map.getOrPut(oid_key);
-            if (!entry.found_existing) {
-                entry.value_ptr.* = std.ArrayList(RefInfo).empty;
-            } else {
-                ctx.allocator.free(oid_key); // Free the duplicate key
-            }
-
-            try entry.value_ptr.append(ctx.allocator, .{
-                .name = try ctx.allocator.dupe(u8, std.mem.span(tag_name)),
-                .ref_type = .tag,
+        for (entry.value_ptr.items) |name| {
+            // Determine if it's a branch or tag based on name conventions
+            const is_tag = std.mem.startsWith(u8, name, "v") or std.mem.indexOf(u8, name, ".") != null;
+            try result.value_ptr.append(ctx.allocator, .{
+                .name = try ctx.allocator.dupe(u8, name),
+                .ref_type = if (is_tag) .tag else .branch,
             });
         }
     }
