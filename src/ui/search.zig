@@ -44,6 +44,8 @@ pub fn search(ctx: *gitweb.Context, writer: anytype) !void {
         try searchAuthor(ctx, &git_repo, search_term, writer);
     } else if (std.mem.eql(u8, search_type, "grep")) {
         try searchGrep(ctx, &git_repo, search_term, writer);
+    } else if (std.mem.eql(u8, search_type, "pickaxe")) {
+        try searchPickaxe(ctx, &git_repo, search_term, writer);
     } else {
         try writer.writeAll("<p>Invalid search type.</p>\n");
     }
@@ -78,6 +80,7 @@ fn renderSearchForm(ctx: *gitweb.Context, writer: anytype) !void {
     try writeSearchOption(writer, "commit", "Commits", search_type);
     try writeSearchOption(writer, "author", "Authors", search_type);
     try writeSearchOption(writer, "grep", "Files", search_type);
+    try writeSearchOption(writer, "pickaxe", "Changes", search_type);
     try writer.writeAll("</select>\n");
 
     try writer.writeAll("<button type='submit' class='btn'>Search</button>\n");
@@ -417,6 +420,194 @@ fn renderSearchResult(ctx: *gitweb.Context, commit: *git.Commit, oid: *const c.g
     };
 
     try shared.writeCommitItem(ctx, writer, commit_info, "log");
+}
+
+fn searchPickaxe(ctx: *gitweb.Context, repo: *git.Repository, search_term: []const u8, writer: anytype) !void {
+    try writer.writeAll("<h3>Changes</h3>\n");
+    try writer.writeAll("<p class='search-description'>Showing commits where '<strong>");
+    try html.htmlEscape(writer, search_term);
+    try writer.writeAll("</strong>' was added or removed:</p>\n");
+
+    var walk = try repo.revwalk();
+    defer walk.free();
+
+    // Handle branch filtering
+    const ref_name = ctx.query.get("h") orelse "HEAD";
+    if (std.mem.eql(u8, ref_name, "HEAD")) {
+        try walk.pushHead();
+    } else {
+        var ref = shared.resolveReference(ctx, repo, ref_name) catch {
+            try walk.pushHead();
+            walk.setSorting(c.GIT_SORT_TIME);
+            return searchPickaxeFromWalk(ctx, repo, &walk, search_term, writer);
+        };
+        defer @constCast(&ref).free();
+
+        const oid = @constCast(&ref).target() orelse {
+            try walk.pushHead();
+            walk.setSorting(c.GIT_SORT_TIME);
+            return searchPickaxeFromWalk(ctx, repo, &walk, search_term, writer);
+        };
+        _ = c.git_revwalk_push(walk.walk, oid);
+    }
+
+    walk.setSorting(c.GIT_SORT_TIME);
+    return searchPickaxeFromWalk(ctx, repo, &walk, search_term, writer);
+}
+
+fn searchPickaxeFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: *git.RevWalk, search_term: []const u8, writer: anytype) !void {
+    var found_count: usize = 0;
+    const max_results = 50;
+
+    try writer.writeAll("<div class='log-list'>\n");
+
+    while (walk.next()) |oid| {
+        if (found_count >= max_results) break;
+
+        var commit = try repo.lookupCommit(&oid);
+        defer commit.free();
+
+        // Get parent if exists
+        const parent_tree = if (commit.parentCount() > 0) blk: {
+            var parent = try commit.parent(0);
+            defer parent.free();
+            const tree = try parent.tree();
+            break :blk tree;
+        } else null;
+        defer if (parent_tree) |*t| @constCast(t).free();
+
+        // Get current commit's tree
+        var commit_tree = try commit.tree();
+        defer commit_tree.free();
+
+        // Check if this commit changes the search term count
+        const found = if (parent_tree) |*pt|
+            try diffContainsChange(ctx, repo, @constCast(pt), &commit_tree, search_term)
+        else
+            try treeContainsString(ctx, repo, &commit_tree, search_term);
+
+        if (found) {
+            try renderPickaxeResult(ctx, &commit, &oid, search_term, writer);
+            found_count += 1;
+        }
+    }
+
+    try writer.writeAll("</div>\n");
+
+    if (found_count == 0) {
+        try writer.writeAll("<p>No commits found that add or remove the search term.</p>\n");
+    } else if (found_count >= max_results) {
+        try writer.print("<p>Showing first {d} results.</p>\n", .{max_results});
+    } else {
+        try writer.print("<p>Found {d} commits with changes.</p>\n", .{found_count});
+    }
+}
+
+fn diffContainsChange(_: *gitweb.Context, repo: *git.Repository, old_tree: *git.Tree, new_tree: *git.Tree, search_term: []const u8) !bool {
+    // Get diff between trees
+    var diff = try git.Diff.treeToTree(repo.repo, old_tree.tree, new_tree.tree, null);
+    defer diff.free();
+
+    // Check each file in the diff
+    const num_deltas = diff.numDeltas();
+    for (0..num_deltas) |i| {
+        const delta = diff.getDelta(i) orelse continue;
+
+        // Get old and new file content
+        const old_count = if (delta.old_file.id.id[0] != 0) blk: {
+            var old_blob = repo.lookupBlob(&delta.old_file.id) catch break :blk 0;
+            defer old_blob.free();
+            if (old_blob.isBinary()) break :blk 0;
+            break :blk countOccurrences(old_blob.content(), search_term);
+        } else 0;
+
+        const new_count = if (delta.new_file.id.id[0] != 0) blk: {
+            var new_blob = repo.lookupBlob(&delta.new_file.id) catch break :blk 0;
+            defer new_blob.free();
+            if (new_blob.isBinary()) break :blk 0;
+            break :blk countOccurrences(new_blob.content(), search_term);
+        } else 0;
+
+        // If occurrence count changed, we found a pickaxe hit
+        if (old_count != new_count) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+fn treeContainsString(ctx: *gitweb.Context, repo: *git.Repository, tree: *git.Tree, search_term: []const u8) !bool {
+    const entry_count = tree.entryCount();
+    for (0..entry_count) |i| {
+        const entry = tree.entryByIndex(i) orelse continue;
+        const entry_type = c.git_tree_entry_type(entry);
+
+        if (entry_type == c.GIT_OBJECT_BLOB) {
+            const blob_oid = c.git_tree_entry_id(entry);
+            var blob = repo.lookupBlob(@constCast(blob_oid)) catch continue;
+            defer blob.free();
+
+            if (!blob.isBinary() and countOccurrences(blob.content(), search_term) > 0) {
+                return true;
+            }
+        } else if (entry_type == c.GIT_OBJECT_TREE) {
+            const sub_tree_oid = c.git_tree_entry_id(entry);
+            var sub_tree = repo.lookupTree(@constCast(sub_tree_oid)) catch continue;
+            defer sub_tree.free();
+
+            if (try treeContainsString(ctx, repo, &sub_tree, search_term)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+fn countOccurrences(haystack: []const u8, needle: []const u8) usize {
+    var count: usize = 0;
+    var pos: usize = 0;
+    while (pos < haystack.len) {
+        if (std.mem.indexOfPos(u8, haystack, pos, needle)) |found_pos| {
+            count += 1;
+            pos = found_pos + needle.len;
+        } else {
+            break;
+        }
+    }
+    return count;
+}
+
+fn renderPickaxeResult(ctx: *gitweb.Context, commit: *git.Commit, oid: *const c.git_oid, search_term: []const u8, writer: anytype) !void {
+    const message = commit.message();
+    const parsed_msg = parsing.parseCommitMessage(message);
+    const author_sig = commit.author();
+    const author_name = std.mem.span(author_sig.name);
+
+    var oid_str: [40]u8 = undefined;
+    _ = c.git_oid_fmt(&oid_str, oid);
+
+    try writer.writeAll("<div class='log-item'>\n");
+
+    // First line: commit message
+    try writer.writeAll("<div class='log-message'>\n");
+    try shared.writeCommitLink(ctx, writer, &oid_str, null);
+    try writer.writeAll(" ");
+    try html.htmlEscape(writer, parsed_msg.subject);
+    try writer.writeAll(" <span class='pickaxe-indicator'>[");
+    try html.htmlEscape(writer, search_term);
+    try writer.writeAll("]</span>");
+    try writer.writeAll("</div>\n");
+
+    // Second line: metadata
+    try writer.writeAll("<div class='log-meta'>\n");
+    try writer.print("<span class='log-author'>{s}</span>", .{author_name});
+    try writer.writeAll("<span class='log-age'>");
+    try shared.formatAge(writer, commit.time());
+    try writer.writeAll("</span>");
+    try writer.writeAll("</div>\n");
+
+    try writer.writeAll("</div>\n");
 }
 
 fn renderGrepResult(ctx: *gitweb.Context, file_path: []const u8, line_num: usize, line_content: []const u8, writer: anytype) !void {
