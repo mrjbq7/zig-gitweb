@@ -58,13 +58,13 @@ pub fn info(ctx: *gitweb.Context, writer: anytype) !void {
 
             // First ref includes capabilities
             if (first) {
-                const line = try std.fmt.allocPrint(ctx.allocator, "{s} HEAD\x00multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed symref=HEAD:refs/heads/master agent=zgit/0.1\n", .{oid_str});
-                defer ctx.allocator.free(line);
+                var buf: [512]u8 = undefined;
+                const line = try std.fmt.bufPrint(&buf, "{s} HEAD\x00multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed symref=HEAD:refs/heads/master agent=zgit/0.1\n", .{oid_str});
                 try writePktLine(writer, line);
                 first = false;
             } else {
-                const line = try std.fmt.allocPrint(ctx.allocator, "{s} HEAD\n", .{oid_str});
-                defer ctx.allocator.free(line);
+                var buf: [128]u8 = undefined;
+                const line = try std.fmt.bufPrint(&buf, "{s} HEAD\n", .{oid_str});
                 try writePktLine(writer, line);
             }
         }
@@ -96,13 +96,14 @@ pub fn info(ctx: *gitweb.Context, writer: anytype) !void {
                     const oid_str = try git.oidToString(@ptrCast(resolved_target));
 
                     if (first) {
-                        const line = try std.fmt.allocPrint(ctx.allocator, "{s} {s}\x00multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed agent=zgit/0.1\n", .{ oid_str, name });
-                        defer ctx.allocator.free(line);
+                        // Use a buffer to avoid allocation
+                        var buf: [512]u8 = undefined;
+                        const line = try std.fmt.bufPrint(&buf, "{s} {s}\x00multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed agent=zgit/0.1\n", .{ oid_str, name });
                         try writePktLine(writer, line);
                         first = false;
                     } else {
-                        const line = try std.fmt.allocPrint(ctx.allocator, "{s} {s}\n", .{ oid_str, name });
-                        defer ctx.allocator.free(line);
+                        var buf: [256]u8 = undefined;
+                        const line = try std.fmt.bufPrint(&buf, "{s} {s}\n", .{ oid_str, name });
                         try writePktLine(writer, line);
                     }
                 }
@@ -111,13 +112,13 @@ pub fn info(ctx: *gitweb.Context, writer: anytype) !void {
             const oid_str = try git.oidToString(@ptrCast(target));
 
             if (first) {
-                const line = try std.fmt.allocPrint(ctx.allocator, "{s} {s}\x00multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed agent=zgit/0.1\n", .{ oid_str, name });
-                defer ctx.allocator.free(line);
+                var buf: [512]u8 = undefined;
+                const line = try std.fmt.bufPrint(&buf, "{s} {s}\x00multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed agent=zgit/0.1\n", .{ oid_str, name });
                 try writePktLine(writer, line);
                 first = false;
             } else {
-                const line = try std.fmt.allocPrint(ctx.allocator, "{s} {s}\n", .{ oid_str, name });
-                defer ctx.allocator.free(line);
+                var buf: [256]u8 = undefined;
+                const line = try std.fmt.bufPrint(&buf, "{s} {s}\n", .{ oid_str, name });
                 try writePktLine(writer, line);
             }
         }
@@ -131,8 +132,8 @@ pub fn info(ctx: *gitweb.Context, writer: anytype) !void {
                 const peeled_oid = c.git_tag_target_id(tag_obj);
                 if (peeled_oid != null) {
                     const peeled_str = try git.oidToString(@ptrCast(peeled_oid));
-                    const line = try std.fmt.allocPrint(ctx.allocator, "{s} {s}^{{}}\n", .{ peeled_str, name });
-                    defer ctx.allocator.free(line);
+                    var buf: [256]u8 = undefined;
+                    const line = try std.fmt.bufPrint(&buf, "{s} {s}^{{}}\n", .{ peeled_str, name });
                     try writePktLine(writer, line);
                 }
             }

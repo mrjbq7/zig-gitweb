@@ -189,12 +189,12 @@ fn collectStatisticsFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: 
         stats_data.total_commits += 1;
 
         // Count by author
-        const author_copy = try ctx.allocator.dupe(u8, author_name);
-        const result = try stats_data.authors.getOrPut(author_copy);
+        const result = try stats_data.authors.getOrPut(author_name);
         if (result.found_existing) {
-            ctx.allocator.free(author_copy);
             result.value_ptr.* += 1;
         } else {
+            const author_copy = try ctx.allocator.dupe(u8, author_name);
+            result.key_ptr.* = author_copy;
             result.value_ptr.* = 1;
         }
 
@@ -224,12 +224,9 @@ fn collectStatisticsFromWalk(ctx: *gitweb.Context, repo: *git.Repository, walk: 
         const month = @divTrunc(@mod(seconds_since_epoch, 31536000), 2629746) + 1; // Approximate
         const date_key = try std.fmt.allocPrint(ctx.allocator, "{d}-{d:0>2}", .{ year, month });
 
-        const date_key_copy = try ctx.allocator.dupe(u8, date_key);
-        ctx.allocator.free(date_key);
-
-        const date_result = try stats_data.commits_by_date.getOrPut(date_key_copy);
+        const date_result = try stats_data.commits_by_date.getOrPut(date_key);
         if (date_result.found_existing) {
-            ctx.allocator.free(date_key_copy);
+            ctx.allocator.free(date_key);
             date_result.value_ptr.* += 1;
         } else {
             date_result.value_ptr.* = 1;

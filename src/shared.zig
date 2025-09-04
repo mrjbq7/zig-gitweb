@@ -177,25 +177,22 @@ pub fn isDirectory(path: []const u8) bool {
 }
 
 pub fn isGitRepository(path: []const u8) bool {
-    const allocator = std.heap.page_allocator;
+    // Use stack buffer for path construction to avoid allocations
+    var buf: [1024]u8 = undefined;
 
     // Check for .git directory
-    const git_dir = std.fmt.allocPrint(allocator, "{s}/.git", .{path}) catch return false;
-    defer allocator.free(git_dir);
-
+    const git_dir = std.fmt.bufPrint(&buf, "{s}/.git", .{path}) catch return false;
     if (isDirectory(git_dir)) return true;
 
     // Check for bare repository (has refs, objects, HEAD)
-    const refs = std.fmt.allocPrint(allocator, "{s}/refs", .{path}) catch return false;
-    defer allocator.free(refs);
+    const refs = std.fmt.bufPrint(&buf, "{s}/refs", .{path}) catch return false;
+    if (!isDirectory(refs)) return false;
 
-    const objects = std.fmt.allocPrint(allocator, "{s}/objects", .{path}) catch return false;
-    defer allocator.free(objects);
+    const objects = std.fmt.bufPrint(&buf, "{s}/objects", .{path}) catch return false;
+    if (!isDirectory(objects)) return false;
 
-    const head = std.fmt.allocPrint(allocator, "{s}/HEAD", .{path}) catch return false;
-    defer allocator.free(head);
-
-    return isDirectory(refs) and isDirectory(objects) and fileExists(head);
+    const head = std.fmt.bufPrint(&buf, "{s}/HEAD", .{path}) catch return false;
+    return fileExists(head);
 }
 
 pub const RepoInfo = struct {

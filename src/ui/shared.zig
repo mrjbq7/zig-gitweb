@@ -192,12 +192,11 @@ pub fn collectRefsMap(ctx: *gitweb.Context, repo: *git.Repository) !std.StringHa
             var oid_str: [40]u8 = undefined;
             _ = git.c.git_oid_fmt(&oid_str, oid);
 
-            const key = try ctx.allocator.dupe(u8, &oid_str);
-            const result = try refs_map.getOrPut(key);
+            const result = try refs_map.getOrPut(&oid_str);
             if (!result.found_existing) {
+                const key = try ctx.allocator.dupe(u8, &oid_str);
+                result.key_ptr.* = key;
                 result.value_ptr.* = std.ArrayList([]const u8).empty;
-            } else {
-                ctx.allocator.free(key);
             }
 
             const branch_name = try ctx.allocator.dupe(u8, branch.name);
@@ -220,12 +219,11 @@ pub fn collectRefsMap(ctx: *gitweb.Context, repo: *git.Repository) !std.StringHa
         var oid_str: [40]u8 = undefined;
         _ = git.c.git_oid_fmt(&oid_str, oid);
 
-        const key = try ctx.allocator.dupe(u8, &oid_str);
-        const result = try refs_map.getOrPut(key);
+        const result = try refs_map.getOrPut(&oid_str);
         if (!result.found_existing) {
+            const key = try ctx.allocator.dupe(u8, &oid_str);
+            result.key_ptr.* = key;
             result.value_ptr.* = std.ArrayList([]const u8).empty;
-        } else {
-            ctx.allocator.free(key);
         }
 
         const tag_name = try ctx.allocator.dupe(u8, tag.name);
