@@ -19,6 +19,7 @@ const ui_atom = @import("ui/atom.zig");
 const ui_clone = @import("ui/clone.zig");
 const ui_plain = @import("ui/plain.zig");
 const ui_search = @import("ui/search.zig");
+const ui_cache_stats = @import("ui/cache_stats.zig");
 
 pub const CommandHandler = fn (ctx: *gitweb.Context, writer: std.io.AnyWriter) anyerror!void;
 
@@ -34,6 +35,9 @@ const commands = [_]Command{
     .{ .name = "blame", .handler = ui_blame.blame, .wants_repo = true },
     .{ .name = "blob", .handler = ui_blob.blob, .wants_repo = true },
     .{ .name = "branches", .handler = ui_branches.branches, .wants_repo = true },
+    .{ .name = "cache-stats", .handler = ui_cache_stats.cacheStats, .wants_repo = false },
+    .{ .name = "cache-clear", .handler = ui_cache_stats.cacheClear, .wants_repo = false },
+    .{ .name = "cache-invalidate", .handler = ui_cache_stats.cacheInvalidate, .wants_repo = false },
     .{ .name = "commit", .handler = ui_commit.commit, .wants_repo = true },
     .{ .name = "diff", .handler = ui_diff.diff, .wants_repo = true },
     .{ .name = "info", .handler = ui_clone.info, .wants_repo = true },

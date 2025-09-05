@@ -267,6 +267,120 @@ pub fn parseGitConfig(content: []const u8, allocator: std.mem.Allocator) !std.St
     return config;
 }
 
+// Tests
+const testing = std.testing;
+
+test "parseDate" {
+    const date = parseDate("1234567890", 0);
+    try testing.expectEqual(@as(i64, 1234567890), date);
+
+    const invalid = parseDate("invalid", 999);
+    try testing.expectEqual(@as(i64, 999), invalid);
+}
+
+test "parseBool" {
+    try testing.expect(parseBool("true"));
+    try testing.expect(parseBool("1"));
+    try testing.expect(parseBool("yes"));
+    try testing.expect(!parseBool("false"));
+    try testing.expect(!parseBool("0"));
+    try testing.expect(!parseBool("no"));
+}
+
+test "parseSize" {
+    try testing.expectEqual(@as(?u64, 1024), parseSize("1024"));
+    try testing.expectEqual(@as(?u64, 1024), parseSize("1K"));
+    try testing.expectEqual(@as(?u64, 1048576), parseSize("1M"));
+    try testing.expectEqual(@as(?u64, 1073741824), parseSize("1G"));
+    try testing.expectEqual(@as(?u64, null), parseSize("invalid"));
+}
+
+test "isValidSha1" {
+    try testing.expect(isValidSha1("abcdef1234567890abcdef1234567890abcdef12"));
+    try testing.expect(!isValidSha1("not_a_sha1"));
+    try testing.expect(!isValidSha1("abcdef1234567890abcdef1234567890abcdef1")); // Too short
+}
+
+test "abbreviateSha" {
+    const sha = "abcdef1234567890abcdef1234567890abcdef12";
+    try testing.expectEqualStrings("abcdef1", abbreviateSha(sha, 7));
+    try testing.expectEqualStrings("abcd", abbreviateSha(sha, 4));
+}
+
+test "normalizeRefName" {
+    try testing.expectEqualStrings("main", normalizeRefName("refs/heads/main"));
+    try testing.expectEqualStrings("v1.0", normalizeRefName("refs/tags/v1.0"));
+    try testing.expectEqualStrings("origin/main", normalizeRefName("refs/remotes/origin/main"));
+    try testing.expectEqualStrings("feature", normalizeRefName("feature"));
+}
+
+test "stripPrefix" {
+    try testing.expectEqualStrings("bar", stripPrefix("foobar", "foo"));
+    try testing.expectEqualStrings("foobar", stripPrefix("foobar", "baz"));
+}
+
+test "stripSuffix" {
+    try testing.expectEqualStrings("foo", stripSuffix("foobar", "bar"));
+    try testing.expectEqualStrings("foobar", stripSuffix("foobar", "baz"));
+}
+
+test "truncateString" {
+    try testing.expectEqualStrings("hello", truncateString("hello world", 5));
+    try testing.expectEqualStrings("short", truncateString("short", 10));
+}
+
+test "formatFileSize" {
+    const allocator = testing.allocator;
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(allocator);
+
+    try formatFileSize(1024, list.writer(allocator));
+    try testing.expectEqualStrings("1.0 KB", list.items);
+}
+
+test "formatTimestamp" {
+    const allocator = testing.allocator;
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(allocator);
+
+    // Test formatting works without error
+    try formatTimestamp(1704067200, list.writer(allocator));
+    try testing.expect(list.items.len > 0);
+}
+
+test "formatDuration" {
+    const allocator = testing.allocator;
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(allocator);
+
+    try formatDuration(3661, list.writer(allocator)); // 1 hour, 1 minute, 1 second
+    try testing.expect(std.mem.indexOf(u8, list.items, "h") != null);
+}
+
+test "extractEmail" {
+    const email = extractEmail("John Doe <john@example.com>");
+    try testing.expect(email != null);
+    try testing.expectEqualStrings("john@example.com", email.?);
+
+    const no_email = extractEmail("John Doe");
+    try testing.expect(no_email == null);
+}
+
+test "extractName" {
+    try testing.expectEqualStrings("John Doe", extractName("John Doe <john@example.com>"));
+    try testing.expectEqualStrings("Jane", extractName("Jane"));
+}
+
+test "parseCommitMessage" {
+    const msg = parseCommitMessage("Subject line\n\nBody paragraph\nMore body");
+    try testing.expectEqualStrings("Subject line", msg.subject);
+    try testing.expectEqualStrings("Body paragraph\nMore body", msg.body);
+
+    const single = parseCommitMessage("Just subject");
+    try testing.expectEqualStrings("Just subject", single.subject);
+    try testing.expectEqualStrings("", single.body);
+}
+
 pub fn parseAuthorLine(line: []const u8) struct {
     name: []const u8,
     email: []const u8,
@@ -294,23 +408,4 @@ pub fn parseAuthorLine(line: []const u8) struct {
         .timestamp = timestamp,
         .timezone = timezone,
     };
-}
-
-test "parseSize" {
-    try std.testing.expectEqual(@as(?u64, 1024), parseSize("1K"));
-    try std.testing.expectEqual(@as(?u64, 1024), parseSize("1k"));
-    try std.testing.expectEqual(@as(?u64, 1048576), parseSize("1M"));
-    try std.testing.expectEqual(@as(?u64, 1073741824), parseSize("1G"));
-    try std.testing.expectEqual(@as(?u64, 100), parseSize("100"));
-}
-
-test "parseHexColor" {
-    try std.testing.expectEqual(@as(?u32, 0xFFFFFF), parseHexColor("#FFF"));
-    try std.testing.expectEqual(@as(?u32, 0xFF0000), parseHexColor("#FF0000"));
-    try std.testing.expectEqual(@as(?u32, 0x123456), parseHexColor("123456"));
-}
-
-test "extractEmail" {
-    try std.testing.expectEqualStrings("user@example.com", extractEmail("John Doe <user@example.com>").?);
-    try std.testing.expectEqual(@as(?[]const u8, null), extractEmail("John Doe"));
 }

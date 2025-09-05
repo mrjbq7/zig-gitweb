@@ -9,6 +9,10 @@ const git = @import("git.zig");
 
 pub const version = "v0.1.0";
 
+test {
+    @import("std").testing.refAllDecls(@This());
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -132,13 +136,13 @@ fn processCgiRequest(ctx: *gitweb.Context) !void {
     if (ctx.cfg.cache_enabled) {
         var buffer: std.ArrayList(u8) = .empty;
         defer buffer.deinit(ctx.allocator);
-        
+
         // Generate HTML content to buffer
         try generateHtmlContent(ctx, buffer.writer(ctx.allocator));
-        
+
         // Write to stdout
         try stdout.writeAll(buffer.items);
-        
+
         // Update cache
         try cache.updateCache(ctx, buffer.items);
     } else {
