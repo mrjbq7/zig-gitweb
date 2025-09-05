@@ -1,4 +1,32 @@
 /* zgit stylesheet */
+:root {
+    /* Primary colors */
+    --link-color: #0969da;
+    --text-primary: #24292e;
+    --text-secondary: #57606a;
+    --text-tertiary: #8b949e;
+    
+    /* Background colors */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #f1f8ff;
+    --bg-hover: #f0f3f6;
+    
+    /* Border colors */
+    --border-primary: #d1d5da;
+    --border-secondary: #e1e4e8;
+    
+    /* Semantic colors */
+    --color-success: #1a7f37;
+    --color-success-bg: #d1f8d1;
+    --color-danger: #cf222e;
+    --color-danger-bg: #ffd8d3;
+    --color-warning: #7d4e00;
+    --color-warning-bg: #fff8c5;
+    --color-info: #0366d6;
+    --color-info-bg: #e1f5fe;
+}
+
 * { 
     margin: 0; 
     padding: 0; 
@@ -7,13 +35,13 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 1rem;
-    color: #333;
-    background: white;
+    color: var(--text-primary);
+    background: var(--bg-primary);
     padding: 0;
     margin: 0;
 }
 
-a { color: #0969da; text-decoration: none; }
+a { color: var(--link-color); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 /* Reusable button styles */
@@ -21,8 +49,8 @@ a:hover { text-decoration: underline; }
 a.btn {
     display: inline-block;
     padding: 8px 16px;
-    background: #f6f8fa;
-    border: 1px solid #d1d5da;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     color: #24292f;
     text-decoration: none;
@@ -44,7 +72,7 @@ a.btn:hover {
 span.btn-active,
 .btn-active:hover,
 span.btn-active:hover {
-    background: #0969da;
+    background: var(--link-color);
     border-color: #0860ca;
     color: #ffffff;
     cursor: default;
@@ -83,7 +111,7 @@ span.btn-active:hover {
 }
 
 #header td.sub {
-    color: #57606a;
+    color: var(--text-secondary);
     padding-left: 16px;
     padding-top: 4px;
 }
@@ -120,8 +148,8 @@ table.tabs td a:hover {
 }
 
 table.tabs td a.active {
-    background: #f6f8fa;  /* Same as branch selector */
-    border: 1px solid #d1d5da;
+    background: var(--bg-secondary);  /* Same as branch selector */
+    border: 1px solid var(--border-primary);
     border-bottom-color: #f6f8fa;
     font-weight: 600;
 }
@@ -129,7 +157,7 @@ table.tabs td a.active {
 /* Branch selector */
 .branch-selector {
     padding: 12px 16px;
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border-bottom: 1px solid #d1d5da;
     margin-bottom: 20px;
 }
@@ -157,7 +185,7 @@ div.content {
 table.list {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     margin: 16px 0;
 }
 
@@ -166,7 +194,7 @@ table.list tr {
 }
 
 table.list tr:nth-child(even) {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
 }
 
 table.list tr:hover {
@@ -178,7 +206,7 @@ table.list tr.nohover:hover {
 }
 
 table.list th {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border-bottom: 1px solid #d1d5da;
     padding: 8px 12px;
     text-align: left;
@@ -187,11 +215,11 @@ table.list th {
 
 table.list td {
     padding: 8px 12px;
-    border-bottom: 1px solid #e1e4e8;
+    border-bottom: 1px solid var(--border-secondary);
 }
 
 table.list td.age {
-    color: #57606a;
+    color: var(--text-secondary);
     font-size: 1rem;
 }
 
@@ -206,12 +234,12 @@ table.list td.age {
     align-items: center;
     gap: 12px;
     padding: 6px 12px;
-    border-bottom: 1px solid #e1e4e8;
+    border-bottom: 1px solid var(--border-secondary);
     transition: background-color 0.2s;
 }
 
 .tree-item:hover {
-    background-color: #f6f8fa;
+    background-color: var(--bg-secondary);
 }
 
 .tree-item.tree-dir .tree-name {
@@ -219,11 +247,11 @@ table.list td.age {
 }
 
 .tree-item.tree-parent {
-    background-color: #f6f8fa;
+    background-color: var(--bg-secondary);
 }
 
 .tree-mode {
-    color: #57606a;
+    color: var(--text-secondary);
     white-space: nowrap;
     min-width: 90px;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -235,7 +263,7 @@ table.list td.age {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #24292e;
+    color: var(--text-primary);
 }
 
 .tree-name:hover {
@@ -243,20 +271,20 @@ table.list td.age {
 }
 
 .tree-size {
-    color: #57606a;
+    color: var(--text-secondary);
     white-space: nowrap;
     min-width: 60px;
     text-align: right;
 }
 
 .tree-actions {
-    color: #57606a;
+    color: var(--text-secondary);
     white-space: nowrap;
     font-size: 0.95rem;
 }
 
 .tree-actions a {
-    color: #0969da;
+    color: var(--link-color);
 }
 
 /* Mobile responsive adjustments */
@@ -279,7 +307,7 @@ table.list td.age {
 
 /* Age color coding */
 .age-recent {
-    color: #1a7f37;  /* Green for days and weeks */
+    color: var(--color-success);  /* Green for days and weeks */
 }
 
 .age-months {
@@ -296,7 +324,7 @@ div.repolist h2 {
 }
 
 div.repolist p {
-    color: #57606a;
+    color: var(--text-secondary);
     margin-bottom: 16px;
 }
 
@@ -308,7 +336,7 @@ div.summary h2 {
 
 div.summary div.desc {
     margin: 12px 0;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 /* Commit info */
@@ -320,7 +348,7 @@ table.commit-info th {
     padding: 4px 12px 4px 0;
     text-align: right;
     font-weight: 600;
-    color: #57606a;
+    color: var(--text-secondary);
     vertical-align: top;
 }
 
@@ -347,7 +375,7 @@ div.diff-compare-inputs {
 div.diff-compare-inputs input[type="text"] {
     padding: 6px 10px;
     font-size: 0.9rem;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-radius: 4px;
     flex: 1;
     min-width: 250px;
@@ -357,7 +385,7 @@ div.diff-compare-inputs input[type="text"] {
 
 div.diff-compare-inputs input[type="text"]:focus {
     outline: none;
-    border-color: #0969da;
+    border-color: var(--link-color);
     box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
 }
 
@@ -372,20 +400,20 @@ pre.diff {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     font-size: 0.875rem;
     line-height: 1.45;
-    background: #f6f8fa;
-    border: 1px solid #d1d5da;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     padding: 16px;
     overflow-x: auto;
 }
 
 .diff .add {
-    background: #d1f8d1;
+    background: var(--color-success-bg);
     color: #22863a;
 }
 
 .diff .del {
-    background: #ffd8d3;
+    background: var(--color-danger-bg);
     color: #cb2431;
 }
 
@@ -413,7 +441,7 @@ div.file-list td {
 /* File sections for better separation */
 div.file-section {
     margin: 20px 0;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     overflow: hidden;
 }
@@ -461,7 +489,7 @@ h2.path {
 .blob-info {
     margin: 16px 0;
     font-size: 0.95rem;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 .blob-commit-info {
@@ -471,13 +499,13 @@ h2.path {
     padding: 8px 12px;
     margin: 10px 0;
     font-size: 0.9rem;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 pre.blob {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     font-size: 0.875rem;
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border: none;
     border-radius: 0;
     padding: 16px;
@@ -487,8 +515,8 @@ pre.blob {
 
 /* Line numbers */
 .linenumbers {
-    color: #57606a;
-    background: #f6f8fa;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
     border-right: 1px solid #d1d5da;
     padding-right: 8px;
     margin-right: 8px;
@@ -497,9 +525,9 @@ pre.blob {
 }
 
 table.blob-content td.linenumber {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border-right: 1px solid #d1d5da;
-    color: #57606a;
+    color: var(--text-secondary);
     text-align: right;
     padding: 0 12px;
     user-select: none;
@@ -509,12 +537,12 @@ table.blob-content td.linenumber {
 
 /* Highlight targeted line when accessed via anchor */
 table.blob-content td.linenumber:target {
-    background-color: #fff8c5;
+    background-color: var(--color-warning-bg);
     font-weight: bold;
 }
 
 table.blob-content td.linenumber:target + td.code {
-    background-color: #fff8c5;
+    background-color: var(--color-warning-bg);
 }
 
 /* Blame view */
@@ -531,34 +559,34 @@ table.blame td {
 }
 
 table.blame td.commit {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border-right: 1px solid #d1d5da;
-    color: #0969da;
+    color: var(--link-color);
     white-space: nowrap;
 }
 
 table.blame td.author {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border-right: 1px solid #d1d5da;
-    color: #57606a;
+    color: var(--text-secondary);
     white-space: nowrap;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 0.875rem;
 }
 
 table.blame td.date {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border-right: 1px solid #d1d5da;
-    color: #57606a;
+    color: var(--text-secondary);
     white-space: nowrap;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 0.875rem;
 }
 
 table.blame td.linenumber {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border-right: 1px solid #d1d5da;
-    color: #57606a;
+    color: var(--text-secondary);
     text-align: right;
     padding-right: 12px;
     user-select: none;
@@ -575,19 +603,19 @@ table.blame td.code {
 
 .log-item {
     padding: 10px 16px;
-    border-bottom: 1px solid #e1e4e8;
+    border-bottom: 1px solid var(--border-secondary);
     transition: background-color 0.2s;
 }
 
 .log-item:hover {
-    background-color: #f6f8fa;
+    background-color: var(--bg-secondary);
 }
 
 .log-message {
     font-size: 1.05rem;
     font-weight: 600;
     line-height: 1.6;
-    color: #24292e;
+    color: var(--text-primary);
     margin-bottom: 4px;
     word-wrap: break-word;
 }
@@ -597,12 +625,12 @@ table.blame td.code {
     align-items: center;
     gap: 12px;
     font-size: 0.925rem;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 
 .log-hash a {
-    color: #0969da;
+    color: var(--link-color);
 }
 
 .log-author {
@@ -616,15 +644,15 @@ table.blame td.code {
 .log-stats {
     white-space: nowrap;
     font-size: 1rem;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 .log-stats .insertions {
-    color: #1a7f37;
+    color: var(--color-success);
 }
 
 .log-stats .deletions {
-    color: #cf222e;
+    color: var(--color-danger);
 }
 
 /* Mobile responsive */
@@ -669,15 +697,15 @@ pre.commit-msg {
 td.log-stats {
     font-size: 1rem;
     white-space: nowrap;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 td.log-stats .insertions {
-    color: #1a7f37;
+    color: var(--color-success);
 }
 
 td.log-stats .deletions {
-    color: #cf222e;
+    color: var(--color-danger);
 }
 
 /* Ref indicators */
@@ -694,7 +722,7 @@ td.log-stats .deletions {
 
 .ref-branch, span.ref-branch {
     background: #d1f5d3;
-    color: #1a7f37;
+    color: var(--color-success);
     border: 1px solid #8fc592;
 }
 
@@ -711,12 +739,12 @@ td.log-stats .deletions {
 
 .refs-item {
     padding: 10px 16px;
-    border-bottom: 1px solid #e1e4e8;
+    border-bottom: 1px solid var(--border-secondary);
     transition: background-color 0.2s;
 }
 
 .refs-item:hover {
-    background-color: #f6f8fa;
+    background-color: var(--bg-secondary);
 }
 
 .refs-item.refs-current {
@@ -733,11 +761,11 @@ td.log-stats .deletions {
 }
 
 .refs-name a {
-    color: #24292e;
+    color: var(--text-primary);
 }
 
 .refs-remote {
-    color: #57606a;
+    color: var(--text-secondary);
     font-size: 0.875rem;
 }
 
@@ -780,12 +808,12 @@ td.log-stats .deletions {
     display: flex;
     gap: 12px;
     font-size: 0.925rem;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 
 .refs-hash a {
-    color: #0969da;
+    color: var(--link-color);
 }
 
 .refs-author {
@@ -799,7 +827,7 @@ td.log-stats .deletions {
 .refs-empty {
     padding: 20px;
     text-align: center;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 /* Mobile responsive */
@@ -832,12 +860,12 @@ td.log-stats .deletions {
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid #e1e4e8;
+    border-bottom: 1px solid var(--border-secondary);
     transition: background-color 0.2s;
 }
 
 .repo-item:hover {
-    background-color: #f6f8fa;
+    background-color: var(--bg-secondary);
 }
 
 .repo-main {
@@ -852,12 +880,12 @@ td.log-stats .deletions {
 }
 
 .repo-name a {
-    color: #0969da;
+    color: var(--link-color);
 }
 
 .repo-description {
     font-size: 1rem;
-    color: #57606a;
+    color: var(--text-secondary);
     margin-top: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -869,7 +897,7 @@ td.log-stats .deletions {
     align-items: center;
     gap: 16px;
     font-size: 1rem;
-    color: #57606a;
+    color: var(--text-secondary);
 }
 
 .repo-activity {
@@ -881,13 +909,13 @@ td.log-stats .deletions {
 }
 
 .repo-actions a {
-    color: #0969da;
+    color: var(--link-color);
 }
 
 .repolist-empty {
     padding: 40px;
     text-align: center;
-    color: #57606a;
+    color: var(--text-secondary);
     font-size: 1rem;
 }
 
@@ -920,7 +948,7 @@ td.log-stats .deletions {
 div.footer {
     margin-top: 40px;
     padding: 20px 16px;
-    color: #57606a;
+    color: var(--text-secondary);
     font-size: 0.875rem;
     text-align: center;
 }
@@ -928,7 +956,7 @@ div.footer {
 /* Forms */
 input[type="text"], input[type="search"], select {
     padding: 5px 12px;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     font-size: 0.875rem;
     background: white;
@@ -936,7 +964,7 @@ input[type="text"], input[type="search"], select {
 
 input[type="text"]:focus, input[type="search"]:focus, select:focus {
     outline: none;
-    border-color: #0969da;
+    border-color: var(--link-color);
     box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
 }
 
@@ -965,20 +993,20 @@ div.pagination a, div.pagination span {
     display: inline-block;
     padding: 5px 10px;
     margin: 0 2px;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-radius: 3px;
     background: white;
-    color: #0969da;
+    color: var(--link-color);
 }
 
 div.pagination span.current {
-    background: #0969da;
+    background: var(--link-color);
     color: white;
-    border-color: #0969da;
+    border-color: var(--link-color);
 }
 
 div.pagination a:hover {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     text-decoration: none;
 }
 
@@ -988,7 +1016,7 @@ div.stats-graph {
 }
 
 div.stats-graph canvas {
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
 }
 
@@ -1019,7 +1047,7 @@ div.stats-summary {
 }
 
 .hex-dump-table thead {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     border-bottom: 2px solid #d1d5da;
 }
 
@@ -1031,16 +1059,16 @@ div.stats-summary {
 
 .hex-dump-table td {
     padding: 4px 12px;
-    border-bottom: 1px solid #e1e4e8;
+    border-bottom: 1px solid var(--border-secondary);
 }
 
 .hex-dump-table td.offset {
-    color: #57606a;
+    color: var(--text-secondary);
     font-weight: 500;
 }
 
 .hex-dump-table td.hex {
-    color: #0969da;
+    color: var(--link-color);
     white-space: pre;
 }
 
@@ -1050,7 +1078,7 @@ div.stats-summary {
 }
 
 .hex-dump-table tbody tr:hover {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
 }
 
 /* Search form and results */
@@ -1070,7 +1098,7 @@ div.search-input input[type="text"] {
     min-width: 250px;
     max-width: 400px;
     padding: 6px 10px;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-radius: 4px;
     font-size: 0.9rem;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -1078,7 +1106,7 @@ div.search-input input[type="text"] {
 
 div.search-input select {
     padding: 6px 10px;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-radius: 4px;
     background: white;
     font-size: 0.9rem;
@@ -1091,7 +1119,7 @@ table.search-results {
 }
 
 table.search-results th {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     padding: 8px 12px;
     text-align: left;
     border-bottom: 2px solid #d1d5da;
@@ -1100,18 +1128,18 @@ table.search-results th {
 
 table.search-results td {
     padding: 8px 12px;
-    border-bottom: 1px solid #e1e4e8;
+    border-bottom: 1px solid var(--border-secondary);
     vertical-align: top;
 }
 
 table.search-results tr:hover {
-    background: #f6f8fa;
+    background: var(--bg-secondary);
 }
 
 table.search-results code {
     font-family: 'SFMono-Regular', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     font-size: 0.875rem;
-    background: #f6f8fa;
+    background: var(--bg-secondary);
     padding: 2px 4px;
     border-radius: 3px;
 }
@@ -1152,7 +1180,7 @@ table.search-results code {
     padding: 10px 16px;
     font-size: 0.875rem;
     font-weight: 600;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-bottom: none;
     border-radius: 6px 6px 0 0;
     margin-top: 20px;
@@ -1162,7 +1190,7 @@ table.ssdiff {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    border: 1px solid #d1d5da;
+    border: 1px solid var(--border-primary);
     border-top: none;
     border-radius: 0 0 6px 6px;
     margin-bottom: 20px;
@@ -1182,8 +1210,8 @@ table.ssdiff td {
 table.ssdiff td.lineno {
     width: 40px;
     text-align: right;
-    background: #f6f8fa;
-    color: #57606a;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
     border-right: 1px solid #d1d5da;
     padding-right: 8px;
     user-select: none;
@@ -1199,7 +1227,7 @@ table.ssdiff td.del {
 
 table.ssdiff td.hunk {
     background: #f1f8ff;
-    color: #0969da;
+    color: var(--link-color);
     font-weight: 600;
     padding: 4px 8px;
 }
@@ -1224,19 +1252,47 @@ table.ssdiff tr:hover {
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
-    body {
-        background: #0d1117;
-        color: #c9d1d9;
+    :root {
+        /* Primary colors */
+        --link-color: #58a6ff;
+        --text-primary: #c9d1d9;
+        --text-secondary: #8b949e;
+        --text-tertiary: #6e7681;
+        
+        /* Background colors */
+        --bg-primary: #0d1117;
+        --bg-secondary: #161b22;
+        --bg-tertiary: #1c2128;
+        --bg-hover: #161b22;
+        
+        /* Border colors */
+        --border-primary: #30363d;
+        --border-secondary: #21262d;
+        
+        /* Semantic colors */
+        --color-success: #3fb950;
+        --color-success-bg: #1a3a1a;
+        --color-danger: #f85149;
+        --color-danger-bg: #3a1a1a;
+        --color-warning: #d29922;
+        --color-warning-bg: #3a3000;
+        --color-info: #58a6ff;
+        --color-info-bg: #161b22;
     }
     
-    a { color: #58a6ff; }
+    body {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+    
+    a { color: var(--link-color); }
     
     /* Button styles for dark mode */
     .btn,
     a.btn {
         background: #21262d;
-        border-color: #30363d;
-        color: #c9d1d9;
+        border-color: var(--border-primary);
+        color: var(--text-primary);
     }
     
     .btn:hover,
@@ -1259,7 +1315,7 @@ table.ssdiff tr:hover {
     
     
     #header td.sub {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     table.tabs {
@@ -1268,7 +1324,7 @@ table.ssdiff tr:hover {
     }
     
     table.tabs td a {
-        color: #c9d1d9;
+        color: var(--text-primary);
     }
     
     table.tabs td a:hover {
@@ -1277,18 +1333,18 @@ table.ssdiff tr:hover {
     }
     
     table.tabs td a.active {
-        background: #161b22;  /* Same as branch selector in dark mode */
-        border-color: #30363d;
+        background: var(--bg-secondary);  /* Same as branch selector in dark mode */
+        border-color: var(--border-primary);
         border-bottom-color: #161b22;
     }
     
     .branch-selector {
-        background: #161b22;
+        background: var(--bg-secondary);
         border-bottom-color: #30363d;
     }
     
     table.list {
-        border-color: #30363d;
+        border-color: var(--border-primary);
     }
     
     table.list tr {
@@ -1296,7 +1352,7 @@ table.ssdiff tr:hover {
     }
     
     table.list tr:nth-child(even) {
-        background: #161b22;
+        background: var(--bg-secondary);
     }
     
     table.list tr:hover {
@@ -1304,25 +1360,25 @@ table.ssdiff tr:hover {
     }
     
     table.list th {
-        background: #161b22;
+        background: var(--bg-secondary);
         border-bottom-color: #30363d;
     }
     
     table.list td {
-        border-bottom-color: #21262d;
+        border-bottom-color: var(--border-secondary);
     }
     
     table.list td.age {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     div.repolist p {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     
     div.summary div.desc {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     /* Repository list items in dark mode */
@@ -1358,52 +1414,52 @@ table.ssdiff tr:hover {
     
     /* Make text more visible in dark mode */
     .log-message {
-        color: #c9d1d9;
+        color: var(--text-primary);
     }
     
     .refs-name a {
-        color: #c9d1d9;
+        color: var(--text-primary);
     }
     
     .refs-message {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     table.commit-info th {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     .blob-info {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
 
     .blob-commit-info {
         background: #2d2a1f;
         border-color: #484532;
-        color: #8b949e;
+        color: var(--text-secondary);
     }
 
     div.diff-compare-inputs input[type="text"],
     div.search-input input[type="text"] {
         background: #0d1117;
-        border-color: #30363d;
-        color: #c9d1d9;
+        border-color: var(--border-primary);
+        color: var(--text-primary);
     }
     
     div.diff-compare-inputs input[type="text"]:focus,
     div.search-input input[type="text"]:focus {
-        border-color: #58a6ff;
+        border-color: var(--link-color);
         box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
     }
     
     div.search-input select {
         background: #0d1117;
-        border-color: #30363d;
-        color: #c9d1d9;
+        border-color: var(--border-primary);
+        color: var(--text-primary);
     }
     
     pre.diff, pre.blob {
-        background: #161b22;
+        background: var(--bg-secondary);
         border: none;
     }
     
@@ -1418,8 +1474,8 @@ table.ssdiff tr:hover {
     }
     
     .diff .hunk {
-        background: #161b22;
-        color: #58a6ff;
+        background: var(--bg-secondary);
+        color: var(--link-color);
     }
     
     h2.path {
@@ -1427,15 +1483,15 @@ table.ssdiff tr:hover {
     }
     
     .linenumbers {
-        color: #8b949e;
-        background: #161b22;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
         border-right-color: #30363d;
     }
 
     table.blob-content td.linenumber {
-        background: #161b22;
+        background: var(--bg-secondary);
         border-right-color: #30363d;
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     /* Highlight targeted line in dark mode */
@@ -1449,17 +1505,17 @@ table.ssdiff tr:hover {
     }
     
     table.blame td.commit {
-        background: #161b22;
+        background: var(--bg-secondary);
         border-right-color: #30363d;
-        color: #58a6ff;
+        color: var(--link-color);
     }
     
     table.blame td.author,
     table.blame td.date,
     table.blame td.linenumber {
-        background: #161b22;
+        background: var(--bg-secondary);
         border-right-color: #30363d;
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     
@@ -1472,23 +1528,23 @@ table.ssdiff tr:hover {
     }
     
     div.footer {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     /* Diff file list and headers for dark mode */
     div.file-list {
-        background: #161b22;
-        border-color: #30363d;
+        background: var(--bg-secondary);
+        border-color: var(--border-primary);
     }
     
     div.file-section {
-        border-color: #30363d;
+        border-color: var(--border-primary);
     }
     
     div.file-header {
-        background: #161b22;
+        background: var(--bg-secondary);
         border-bottom-color: #30363d;
-        color: #c9d1d9;
+        color: var(--text-primary);
     }
     
     /* Side-by-side diff dark mode colors */
@@ -1501,32 +1557,32 @@ table.ssdiff tr:hover {
     }
     
     table.ssdiff td.hunk {
-        background: #161b22;
-        color: #58a6ff;
+        background: var(--bg-secondary);
+        color: var(--link-color);
     }
     
     table.ssdiff {
         background: #0d1117;
-        border-color: #30363d;
+        border-color: var(--border-primary);
     }
     
     table.ssdiff td {
-        border-color: #30363d;
-        color: #c9d1d9;
+        border-color: var(--border-primary);
+        color: var(--text-primary);
     }
     
     /* Side-by-side diff line numbers */
     table.ssdiff td.lineno {
-        background: #161b22;
-        color: #8b949e;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
         border-right-color: #30363d;
     }
     
     /* Side-by-side diff file header */
     .ssdiff .file-header {
-        background: #161b22;
-        border-color: #30363d;
-        color: #c9d1d9;
+        background: var(--bg-secondary);
+        border-color: var(--border-primary);
+        color: var(--text-primary);
     }
     
     /* Side-by-side diff hunk borders */
@@ -1537,38 +1593,38 @@ table.ssdiff tr:hover {
     
     /* Hex dump dark mode */
     .hex-dump-table thead {
-        background: #161b22;
+        background: var(--bg-secondary);
         border-bottom-color: #30363d;
     }
     
     .hex-dump-table td {
-        border-bottom-color: #21262d;
+        border-bottom-color: var(--border-secondary);
     }
     
     .hex-dump-table td.offset {
-        color: #8b949e;
+        color: var(--text-secondary);
     }
     
     .hex-dump-table td.hex {
-        color: #58a6ff;
+        color: var(--link-color);
     }
     
     .hex-dump-table td.ascii {
-        color: #c9d1d9;
+        color: var(--text-primary);
     }
     
     .hex-dump-table tbody tr:hover {
-        background: #161b22;
+        background: var(--bg-secondary);
     }
     
     input[type="text"], input[type="search"], select {
         background: #0d1117;
-        border-color: #30363d;
-        color: #c9d1d9;
+        border-color: var(--border-primary);
+        color: var(--text-primary);
     }
     
     input[type="text"]:focus, input[type="search"]:focus, select:focus {
-        border-color: #58a6ff;
+        border-color: var(--link-color);
         box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
     }
     
@@ -1583,22 +1639,22 @@ table.ssdiff tr:hover {
     
     div.pagination a, div.pagination span {
         background: #0d1117;
-        border-color: #30363d;
-        color: #58a6ff;
+        border-color: var(--border-primary);
+        color: var(--link-color);
     }
     
     div.pagination span.current {
-        background: #58a6ff;
+        background: var(--link-color);
         color: #0d1117;
-        border-color: #58a6ff;
+        border-color: var(--link-color);
     }
     
     div.pagination a:hover {
-        background: #161b22;
+        background: var(--bg-secondary);
     }
     
     div.stats-graph canvas {
-        border-color: #30363d;
+        border-color: var(--border-primary);
     }
     
     .tooltip .tooltiptext {
@@ -1616,7 +1672,7 @@ table.ssdiff tr:hover {
     
     /* Age color coding for dark mode - inverted brightness */
     .age-recent {
-        color: #3fb950;  /* Bright green for recent (days and weeks) */
+        color: var(--color-success);  /* Green for recent (days and weeks) */
     }
     
     .age-months {
@@ -1629,7 +1685,7 @@ table.ssdiff tr:hover {
     
     /* Tree view dark mode styles */
     .tree-item {
-        border-bottom-color: #21262d;  /* Darker, more subtle border */
+        border-bottom-color: var(--border-secondary);  /* Darker, more subtle border */
     }
     
     .tree-item:hover {
@@ -1641,27 +1697,27 @@ table.ssdiff tr:hover {
     }
     
     .tree-mode {
-        color: #8b949e;  /* Lighter gray for file mode */
+        color: var(--text-secondary);  /* Lighter gray for file mode */
     }
     
     .tree-name {
-        color: #c9d1d9;  /* Light color for file/directory names */
+        color: var(--text-primary);  /* Light color for file/directory names */
     }
     
     .tree-name a {
-        color: #58a6ff;  /* Bright blue for links */
+        color: var(--link-color);  /* Bright blue for links */
     }
     
     .tree-size {
-        color: #8b949e;  /* Lighter gray for file sizes */
+        color: var(--text-secondary);  /* Lighter gray for file sizes */
     }
     
     .tree-actions {
-        color: #8b949e;  /* Lighter gray for action text */
+        color: var(--text-secondary);  /* Lighter gray for action text */
     }
     
     .tree-actions a {
-        color: #58a6ff;  /* Bright blue for action links */
+        color: var(--link-color);  /* Bright blue for action links */
     }
 }
 
