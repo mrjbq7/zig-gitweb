@@ -305,6 +305,28 @@ table.list td.age {
     }
 }
 
+/* Ref badges (branches and tags) */
+.ref-branch, .ref-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 3px;
+    margin-left: 4px;
+}
+
+.ref-branch {
+    background: #d4f8d4;
+    color: #1a7f37;
+    border: 1px solid #8fc592;
+}
+
+.ref-tag {
+    background: #fff4d6;
+    color: #7d4e00;
+    border: 1px solid #f0d000;
+}
+
 /* Age color coding */
 .age-recent {
     color: var(--color-success);  /* Green for days and weeks */
@@ -1681,6 +1703,19 @@ table.ssdiff tr:hover {
     
     .age-years {
         color: #484f58;  /* Darkest for years */
+    }
+    
+    /* Ref badges in dark mode - muted colors */
+    .ref-branch {
+        background: #1c3026;  /* Very dark green */
+        color: #7ee787;  /* Softer green text */
+        border: 1px solid #2d4a36;  /* Muted green border */
+    }
+    
+    .ref-tag {
+        background: #3a2e1a;  /* Very dark yellow/amber */
+        color: #e3b341;  /* Softer yellow text */
+        border: 1px solid #5a4a2a;  /* Muted yellow border */
     }
     
     /* Tree view dark mode styles */
