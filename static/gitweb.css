@@ -1626,6 +1626,43 @@ table.ssdiff tr:hover {
     .age-years {
         color: #484f58;  /* Darkest for years */
     }
+    
+    /* Tree view dark mode styles */
+    .tree-item {
+        border-bottom-color: #21262d;  /* Darker, more subtle border */
+    }
+    
+    .tree-item:hover {
+        background-color: #161b22;  /* Dark hover background */
+    }
+    
+    .tree-item.tree-parent {
+        background-color: #161b22;  /* Dark parent directory background */
+    }
+    
+    .tree-mode {
+        color: #8b949e;  /* Lighter gray for file mode */
+    }
+    
+    .tree-name {
+        color: #c9d1d9;  /* Light color for file/directory names */
+    }
+    
+    .tree-name a {
+        color: #58a6ff;  /* Bright blue for links */
+    }
+    
+    .tree-size {
+        color: #8b949e;  /* Lighter gray for file sizes */
+    }
+    
+    .tree-actions {
+        color: #8b949e;  /* Lighter gray for action text */
+    }
+    
+    .tree-actions a {
+        color: #58a6ff;  /* Bright blue for action links */
+    }
 }
 
 /* Medium screens */
