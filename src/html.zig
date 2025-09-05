@@ -368,3 +368,65 @@ pub fn writeTableCell(writer: anytype, class: ?[]const u8, content: []const u8) 
 pub fn writeTableFooter(writer: anytype) !void {
     try writer.writeAll("</table>\n");
 }
+
+// Tests
+const testing = std.testing;
+
+test htmlEscape {
+    const allocator = testing.allocator;
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(allocator);
+
+    // Test basic HTML escaping
+    try htmlEscape(list.writer(allocator), "<script>alert('xss')</script>");
+    try testing.expectEqualStrings("&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;", list.items);
+
+    // Test with quotes
+    list.clearRetainingCapacity();
+    try htmlEscape(list.writer(allocator), "\"quoted\" & 'text'");
+    try testing.expectEqualStrings("&quot;quoted&quot; &amp; &#39;text&#39;", list.items);
+}
+
+test urlEncode {
+    const allocator = testing.allocator;
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(allocator);
+
+    // Test URL encoding with spaces and special chars
+    try urlEncode(list.writer(allocator), "hello world & stuff");
+    try testing.expectEqualStrings("hello%20world%20%26%20stuff", list.items);
+
+    // Test with path separator
+    list.clearRetainingCapacity();
+    try urlEncode(list.writer(allocator), "path/to/file");
+    try testing.expectEqualStrings("path%2Fto%2Ffile", list.items);
+}
+
+test urlEncodePath {
+    const allocator = testing.allocator;
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(allocator);
+
+    // Path encoding preserves slashes
+    try urlEncodePath(list.writer(allocator), "path/to/file with spaces");
+    try testing.expectEqualStrings("path/to/file%20with%20spaces", list.items);
+}
+
+test urlDecode {
+    const allocator = testing.allocator;
+
+    // Test basic URL decoding
+    const decoded1 = try urlDecode(allocator, "hello%20world");
+    defer allocator.free(decoded1);
+    try testing.expectEqualStrings("hello world", decoded1);
+
+    // Test with multiple encoded chars
+    const decoded2 = try urlDecode(allocator, "a%2Bb%3Dc");
+    defer allocator.free(decoded2);
+    try testing.expectEqualStrings("a+b=c", decoded2);
+
+    // Test with plus as space
+    const decoded3 = try urlDecode(allocator, "hello+world");
+    defer allocator.free(decoded3);
+    try testing.expectEqualStrings("hello world", decoded3);
+}

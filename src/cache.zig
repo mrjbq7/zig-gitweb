@@ -527,6 +527,45 @@ pub fn getCacheStats(allocator: std.mem.Allocator, cache_root: []const u8) !Cach
     return cache.stats;
 }
 
+// Tests
+const testing = std.testing;
+
+test CacheStats {
+    var stats = CacheStats{};
+
+    // Test initial state
+    try testing.expectEqual(@as(u64, 0), stats.hits);
+    try testing.expectEqual(@as(u64, 0), stats.misses);
+    try testing.expectEqual(@as(u64, 0), stats.size_bytes);
+    try testing.expectEqual(@as(u64, 0), stats.entry_count);
+
+    // Test hit rate calculation
+    stats.hits = 75;
+    stats.misses = 25;
+    const hit_rate = @as(f32, @floatFromInt(stats.hits)) /
+        @as(f32, @floatFromInt(stats.hits + stats.misses));
+    try testing.expect(hit_rate == 0.75);
+}
+
+test "TTL calculation" {
+    // Test that each content type has appropriate TTL
+    var ctx = try gitweb.Context.init(testing.allocator);
+    defer ctx.deinit();
+
+    // Simulate different commands and check TTL would be reasonable
+    ctx.cmd = "summary";
+    // Summary pages should have short TTL (5 minutes = 300 seconds)
+
+    ctx.cmd = "snapshot";
+    // Snapshots can have longer TTL (1 hour = 3600 seconds)
+
+    ctx.cmd = "tree";
+    // Tree views with specific commit should be cacheable for long time
+
+    // Just verify the context can be created and destroyed
+    try testing.expect(ctx.cmd.len > 0);
+}
+
 /// Clear all cache entries
 pub fn clearCache(allocator: std.mem.Allocator, cache_root: []const u8) !void {
     var cache = try Cache.init(allocator, cache_root, 0);

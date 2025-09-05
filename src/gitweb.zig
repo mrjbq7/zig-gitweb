@@ -534,6 +534,30 @@ pub const Query = struct {
     }
 };
 
+// Tests
+const testing = std.testing;
+
+test Query {
+    const allocator = testing.allocator;
+    var query = Query.init(allocator);
+    defer query.deinit();
+
+    // Test set and get with allocated strings
+    const val1 = try allocator.dupe(u8, "value1");
+    const val2 = try allocator.dupe(u8, "value2");
+    try query.set("key1", val1);
+    try query.set("key2", val2);
+
+    try testing.expectEqualStrings("value1", query.get("key1").?);
+    try testing.expectEqualStrings("value2", query.get("key2").?);
+    try testing.expect(query.get("key3") == null);
+
+    // Test overwrite - need to allocate new value
+    const new_val = try allocator.dupe(u8, "new_value");
+    try query.set("key1", new_val);
+    try testing.expectEqualStrings("new_value", query.get("key1").?);
+}
+
 pub const Environment = struct {
     cgit_config: ?[]const u8 = null,
     http_host: ?[]const u8 = null,
