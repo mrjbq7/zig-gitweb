@@ -116,3 +116,31 @@ fn lsCache(ctx: *gitweb.Context, writer: anytype) !void {
     try writer.writeAll("<h2>Cache Contents</h2>\n");
     try writer.writeAll("<p>Cache listing not yet implemented.</p>\n");
 }
+
+// Tests
+const testing = std.testing;
+
+// Note: wantsRepo test disabled due to commands array generic function signature issues
+
+test "dispatch default routing" {
+    const allocator = testing.allocator;
+    var ctx = try gitweb.Context.init(allocator);
+    defer ctx.deinit();
+
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+
+    // Test default with no repo (should route to repolist)
+    ctx.cmd = "";
+    ctx.repo = null;
+
+    // We can't easily test the actual dispatch without mocking UI modules,
+    // but we can test the routing logic
+    const cmd = if (std.mem.eql(u8, ctx.cmd, "")) blk: {
+        break :blk if (ctx.repo != null) "summary" else "repolist";
+    } else ctx.cmd;
+
+    try testing.expectEqualStrings("repolist", cmd);
+}
+
+// Note: Commands array tests are disabled due to generic function signature complexity

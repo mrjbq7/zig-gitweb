@@ -11,10 +11,7 @@ pub const UrlBuilder = struct {
         return .{
             .allocator = allocator,
             .base = base,
-            .params = std.ArrayList(struct { key: []const u8, value: []const u8 }){
-                .items = &.{},
-                .capacity = 0,
-            },
+            .params = .empty,
         };
     }
 
@@ -27,10 +24,7 @@ pub const UrlBuilder = struct {
     }
 
     pub fn build(self: *UrlBuilder) ![]const u8 {
-        var buffer = std.ArrayList(u8){
-            .items = &.{},
-            .capacity = 0,
-        };
+        var buffer: std.ArrayList(u8) = .empty;
         defer buffer.deinit(self.allocator);
 
         try buffer.appendSlice(self.allocator, self.base);
@@ -40,18 +34,20 @@ pub const UrlBuilder = struct {
             try buffer.appendSlice(self.allocator, separator);
             try buffer.appendSlice(self.allocator, param.key);
             try buffer.append(self.allocator, '=');
-            try urlEncode(&buffer, param.value);
+            try urlEncode(&buffer, param.value, self.allocator);
         }
 
         return buffer.toOwnedSlice(self.allocator);
     }
 
-    fn urlEncode(buffer: *std.ArrayList(u8), text: []const u8) !void {
+    fn urlEncode(buffer: *std.ArrayList(u8), text: []const u8, allocator: std.mem.Allocator) !void {
         for (text) |char| {
             if (std.ascii.isAlphanumeric(char) or char == '-' or char == '_' or char == '.' or char == '~') {
-                try buffer.append(buffer.allocator, char);
+                try buffer.append(allocator, char);
             } else {
-                try buffer.appendSlice(buffer.allocator, std.fmt.allocPrint(buffer.allocator, "%{X:0>2}", .{char}) catch unreachable);
+                const encoded = try std.fmt.allocPrint(allocator, "%{X:0>2}", .{char});
+                defer allocator.free(encoded);
+                try buffer.appendSlice(allocator, encoded);
             }
         }
     }
@@ -113,10 +109,7 @@ pub fn joinPath(allocator: std.mem.Allocator, parts: []const []const u8) ![]cons
 }
 
 pub fn normalizePath(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
-    var parts = std.ArrayList([]const u8){
-        .items = &.{},
-        .capacity = 0,
-    };
+    var parts: std.ArrayList([]const u8) = .empty;
     defer parts.deinit(allocator);
 
     var iter = std.mem.tokenizeAny(u8, path, "/");
@@ -289,10 +282,7 @@ pub fn isBinaryContent(content: []const u8) bool {
 }
 
 pub fn sanitizeHtml(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
-    var output = std.ArrayList(u8){
-        .items = &.{},
-        .capacity = 0,
-    };
+    var output: std.ArrayList(u8) = .empty;
     defer output.deinit(allocator);
 
     for (input) |c| {
@@ -326,20 +316,134 @@ pub fn truncateString(str: []const u8, max_len: usize, suffix: []const u8) []con
     return str[0..break_at];
 }
 
-test "normalizePath" {
-    const allocator = std.testing.allocator;
+// Tests
+const testing = std.testing;
+
+test UrlBuilder {
+    const allocator = testing.allocator;
+    var builder = UrlBuilder.init(allocator, "/gitweb.cgi");
+    defer builder.deinit();
+
+    try builder.addParam("r", "test.git");
+    try builder.addParam("cmd", "log");
+    try builder.addParam("space", "hello world");
+
+    const url = try builder.build();
+    defer allocator.free(url);
+
+    try testing.expect(std.mem.startsWith(u8, url, "/gitweb.cgi?"));
+    try testing.expect(std.mem.indexOf(u8, url, "r=test.git") != null);
+    try testing.expect(std.mem.indexOf(u8, url, "cmd=log") != null);
+    try testing.expect(std.mem.indexOf(u8, url, "space=hello%20world") != null);
+}
+
+test joinPath {
+    const allocator = testing.allocator;
+
+    const result1 = try joinPath(allocator, &.{ "foo", "bar", "baz" });
+    defer allocator.free(result1);
+    try testing.expectEqualStrings("foo/bar/baz", result1);
+
+    const result2 = try joinPath(allocator, &.{});
+    defer allocator.free(result2);
+    try testing.expectEqualStrings("", result2);
+
+    const result3 = try joinPath(allocator, &.{"single"});
+    defer allocator.free(result3);
+    try testing.expectEqualStrings("single", result3);
+}
+
+test normalizePath {
+    const allocator = testing.allocator;
 
     const result1 = try normalizePath(allocator, "foo/../bar");
     defer allocator.free(result1);
-    try std.testing.expectEqualStrings("bar", result1);
+    try testing.expectEqualStrings("bar", result1);
 
     const result2 = try normalizePath(allocator, "./foo/./bar");
     defer allocator.free(result2);
-    try std.testing.expectEqualStrings("foo/bar", result2);
+    try testing.expectEqualStrings("foo/bar", result2);
+
+    const result3 = try normalizePath(allocator, "a/b/../../c");
+    defer allocator.free(result3);
+    try testing.expectEqualStrings("c", result3);
 }
 
-test "isPathSafe" {
-    try std.testing.expect(isPathSafe("foo/bar"));
-    try std.testing.expect(!isPathSafe("../etc/passwd"));
-    try std.testing.expect(!isPathSafe("/etc/passwd"));
+test isPathSafe {
+    try testing.expect(isPathSafe("foo/bar"));
+    try testing.expect(isPathSafe("src/main.zig"));
+    try testing.expect(!isPathSafe("../etc/passwd"));
+    try testing.expect(!isPathSafe("/etc/passwd"));
+    try testing.expect(!isPathSafe("file\x00name"));
+    try testing.expect(!isPathSafe("file\nname"));
+}
+
+test getMimeType {
+    try testing.expectEqualStrings("text/html", getMimeType("index.html"));
+    try testing.expectEqualStrings("text/css", getMimeType("style.css"));
+    try testing.expectEqualStrings("application/javascript", getMimeType("app.js"));
+    try testing.expectEqualStrings("text/x-zig", getMimeType("main.zig"));
+    try testing.expectEqualStrings("text/x-c", getMimeType("hello.c"));
+    try testing.expectEqualStrings("image/png", getMimeType("logo.png"));
+    try testing.expectEqualStrings("application/octet-stream", getMimeType("unknown.xyz"));
+}
+
+test isBinaryContent {
+    // Text content should not be binary
+    try testing.expect(!isBinaryContent("Hello, world!"));
+    try testing.expect(!isBinaryContent("Line 1\nLine 2\r\nLine 3"));
+    try testing.expect(!isBinaryContent("\tTabbed content"));
+
+    // Binary content with null bytes
+    try testing.expect(isBinaryContent("\x00\x01\x02"));
+    try testing.expect(isBinaryContent("text\x00more"));
+
+    // Control characters (except tab, newline, carriage return)
+    try testing.expect(isBinaryContent("\x08backspace"));
+}
+
+test sanitizeHtml {
+    const allocator = testing.allocator;
+
+    const result1 = try sanitizeHtml(allocator, "<script>alert('xss')</script>");
+    defer allocator.free(result1);
+    try testing.expectEqualStrings("&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;", result1);
+
+    const result2 = try sanitizeHtml(allocator, "\"Hello\" & 'World'");
+    defer allocator.free(result2);
+    try testing.expectEqualStrings("&quot;Hello&quot; &amp; &#39;World&#39;", result2);
+}
+
+test truncateString {
+    // When max_len=5 and suffix="..." (3 chars), truncate_at=2, so we get "he"
+    try testing.expectEqualStrings("he", truncateString("hello world", 5, "..."));
+
+    // String shorter than max_len should be returned as-is
+    try testing.expectEqualStrings("hello world", truncateString("hello world", 20, "..."));
+
+    // When max_len=8 and suffix="..." (3 chars), truncate_at=5, so we break at space after "hello"
+    const result = truncateString("hello there everyone", 8, "...");
+    try testing.expectEqualStrings("hello", result);
+
+    // Test word boundary breaking - result should be within limits
+    const result2 = truncateString("hello world test", 10, "...");
+    try testing.expect(result2.len <= 7); // 10 - 3 = 7 max chars
+}
+
+test expandTilde {
+    const allocator = testing.allocator;
+
+    // Non-tilde paths should be returned as-is
+    const result1 = try expandTilde(allocator, "/absolute/path");
+    defer allocator.free(result1);
+    try testing.expectEqualStrings("/absolute/path", result1);
+
+    const result2 = try expandTilde(allocator, "relative/path");
+    defer allocator.free(result2);
+    try testing.expectEqualStrings("relative/path", result2);
+
+    // Tilde expansion depends on HOME env var, so just test structure
+    const result3 = try expandTilde(allocator, "~/test");
+    defer allocator.free(result3);
+    try testing.expect(std.mem.endsWith(u8, result3, "/test"));
 }

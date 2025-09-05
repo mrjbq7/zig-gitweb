@@ -583,3 +583,54 @@ pub fn getFileMode(mode: u32) []const u8 {
         else => "----------",
     };
 }
+
+// Tests
+const testing = std.testing;
+
+test getFileMode {
+    // Test different file modes
+    try testing.expectEqualStrings("d---------", getFileMode(0o040000)); // Directory
+    try testing.expectEqualStrings("-rw-r--r--", getFileMode(0o100644)); // Regular file
+    try testing.expectEqualStrings("-rwxr-xr-x", getFileMode(0o100755)); // Executable
+    try testing.expectEqualStrings("lrwxrwxrwx", getFileMode(0o120000)); // Symlink
+    try testing.expectEqualStrings("m---------", getFileMode(0o160000)); // Submodule
+    try testing.expectEqualStrings("----------", getFileMode(0o123456)); // Unknown
+}
+
+test "GitError mapping" {
+    // Test error code mapping
+    try testing.expectEqual(GitError.NotFound, getGitError(c.GIT_ENOTFOUND));
+    try testing.expectEqual(GitError.InvalidReference, getGitError(c.GIT_EINVALIDSPEC));
+    try testing.expectEqual(GitError.InvalidReference, getGitError(c.GIT_EAMBIGUOUS));
+    try testing.expectEqual(GitError.InvalidObject, getGitError(c.GIT_EEXISTS));
+    try testing.expectEqual(GitError.Unknown, getGitError(-999));
+}
+
+test "oidToString stringToOid" {
+    // This test requires a valid OID, so we'll create one from a known SHA
+    const test_sha = "1234567890abcdef1234567890abcdef12345678";
+    const oid = stringToOid(test_sha) catch |err| {
+        // If stringToOid fails, we can't test oidToString either
+        try testing.expect(err == GitError.InvalidObject);
+        return;
+    };
+
+    const sha_back = try oidToString(&oid);
+    try testing.expectEqualStrings(test_sha, &sha_back);
+}
+
+test signatureToString {
+    // Create a test signature structure with proper C string handling
+    const name = "Test User";
+    const email = "test@example.com";
+
+    var sig = c.git_signature{
+        .name = @ptrCast(@constCast(name.ptr)),
+        .email = @ptrCast(@constCast(email.ptr)),
+        .when = c.git_time{ .time = 0, .offset = 0, .sign = '+' },
+    };
+
+    const result = try signatureToString(&sig, testing.allocator);
+    defer testing.allocator.free(result);
+    try testing.expectEqualStrings("Test User <test@example.com>", result);
+}

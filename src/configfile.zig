@@ -296,3 +296,86 @@ pub const ConfigParser = struct {
         }
     }
 };
+
+// Tests
+const testing = std.testing;
+
+test ConfigParser {
+    const allocator = testing.allocator;
+    var parser = ConfigParser.init(allocator);
+    defer parser.deinit();
+
+    // Test macro expansion
+    try parser.macros.put("HOME", "/home/user");
+    try parser.macros.put("REPOS", "${HOME}/repos");
+
+    const expanded = try parser.expandMacros("${REPOS}/test.git");
+    defer allocator.free(expanded);
+    try testing.expectEqualStrings("/home/user/repos/test.git", expanded);
+}
+
+test "parseLine sections" {
+    const allocator = testing.allocator;
+    var parser = ConfigParser.init(allocator);
+    defer parser.deinit();
+
+    var ctx = try gitweb.Context.init(allocator);
+    defer ctx.deinit();
+
+    // Test section parsing
+    try parser.parseLine(&ctx, "[general]");
+    try testing.expect(parser.current_section != null);
+    try testing.expectEqualStrings("general", parser.current_section.?);
+
+    // Test comment handling
+    try parser.parseLine(&ctx, "# This is a comment");
+    try parser.parseLine(&ctx, "key = value # inline comment");
+}
+
+test "keyValue parsing" {
+    const allocator = testing.allocator;
+    var parser = ConfigParser.init(allocator);
+    defer parser.deinit();
+
+    var ctx = try gitweb.Context.init(allocator);
+    defer ctx.deinit();
+
+    // Test callback registration
+    const testCallback = struct {
+        fn callback(c: *gitweb.Context, key: []const u8, value: []const u8) !void {
+            _ = c;
+            if (std.mem.eql(u8, key, "test-key")) {
+                try testing.expectEqualStrings("test-value", value);
+            }
+        }
+    }.callback;
+
+    try parser.registerCallback("test-key", testCallback);
+    try parser.parseLine(&ctx, "test-key = test-value");
+}
+
+test parseContent {
+    const allocator = testing.allocator;
+    var parser = ConfigParser.init(allocator);
+    defer parser.deinit();
+
+    var ctx = try gitweb.Context.init(allocator);
+    defer ctx.deinit();
+
+    const config =
+        \\# Test config
+        \\[general]
+        \\cache-size = 1M
+        \\enable-blame = true
+        \\
+        \\[repo]
+        \\url = test.git
+        \\name = Test Repository
+    ;
+
+    try parser.parseContent(&ctx, config);
+
+    // Verify cache size was parsed (1M = 1048576)
+    try testing.expectEqual(@as(usize, 1048576), ctx.cfg.cache_size);
+    try testing.expect(ctx.cfg.enable_blame);
+}
