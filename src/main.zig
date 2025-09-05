@@ -123,23 +123,27 @@ fn processCgiRequest(ctx: *gitweb.Context) !void {
     }
 
     // Generate HTML response
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(ctx.allocator);
+    // Write HTTP headers directly to stdout
+    try stdout.writeAll("Content-Type: text/html; charset=UTF-8\r\n");
+    try stdout.writeAll("Cache-Control: no-cache, no-store\r\n");
+    try stdout.writeAll("\r\n");
 
-    // Write HTTP headers
-    try buffer.appendSlice(ctx.allocator, "Content-Type: text/html; charset=UTF-8\r\n");
-    try buffer.appendSlice(ctx.allocator, "Cache-Control: no-cache, no-store\r\n");
-    try buffer.appendSlice(ctx.allocator, "\r\n");
-
-    // Generate HTML content
-    try generateHtmlContent(ctx, buffer.writer(ctx.allocator));
-
-    // Write to stdout
-    try stdout.writeAll(buffer.items);
-
-    // Update cache if enabled
+    // If caching is enabled, we need to buffer for cache update
     if (ctx.cfg.cache_enabled) {
+        var buffer: std.ArrayList(u8) = .empty;
+        defer buffer.deinit(ctx.allocator);
+        
+        // Generate HTML content to buffer
+        try generateHtmlContent(ctx, buffer.writer(ctx.allocator));
+        
+        // Write to stdout
+        try stdout.writeAll(buffer.items);
+        
+        // Update cache
         try cache.updateCache(ctx, buffer.items);
+    } else {
+        // Stream directly to stdout for best performance
+        try generateHtmlContent(ctx, stdout);
     }
 }
 
